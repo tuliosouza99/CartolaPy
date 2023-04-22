@@ -41,8 +41,8 @@ async def main():
         with st.sidebar.empty():
             with st.spinner():
                 await update_atletas()
+                await update_pontuacoes()
                 await asyncio.gather(
-                    update_pontuacoes(),
                     update_confrontos_or_mandos('confrontos'),
                     update_confrontos_or_mandos('mandos'),
                 )
