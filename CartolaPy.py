@@ -40,13 +40,12 @@ async def main():
     if atualizarTabelas:
         with st.sidebar.empty():
             with st.spinner():
-                await update_atletas()
-                await update_pontuacoes()
                 await asyncio.gather(
+                    update_atletas(),
                     update_confrontos_or_mandos('confrontos'),
                     update_confrontos_or_mandos('mandos'),
                 )
-                await update_pontos_cedidos()
+                await asyncio.gather(update_pontuacoes(), update_pontos_cedidos())
                 st.success('Tabelas Atualizadas!')
                 st.experimental_rerun()
 
