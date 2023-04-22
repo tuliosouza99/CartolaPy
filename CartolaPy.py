@@ -39,15 +39,16 @@ async def main():
     atualizarTabelas = st.sidebar.button('Atualizar Tabelas', key='atualizar_tabelas')
     if atualizarTabelas:
         with st.sidebar.empty():
-            with st.spinner():
-                await asyncio.gather(
-                    update_atletas(),
-                    update_confrontos_or_mandos('confrontos'),
-                    update_confrontos_or_mandos('mandos'),
-                )
-                await asyncio.gather(update_pontuacoes(), update_pontos_cedidos())
-                st.success('Tabelas Atualizadas!')
-                st.experimental_rerun()
+            pbar = st.progress(0, text='Atualizando Tabelas...')
+
+            await asyncio.gather(
+                update_atletas(pbar),
+                update_confrontos_or_mandos('confrontos', pbar),
+                update_confrontos_or_mandos('mandos', pbar),
+            )
+            await asyncio.gather(update_pontuacoes(pbar), update_pontos_cedidos(pbar))
+            st.success('Tabelas Atualizadas!')
+            st.experimental_rerun()
 
     media_opcao = st.sidebar.radio(
         'Selecione um Tipo de Média',

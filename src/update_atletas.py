@@ -9,7 +9,7 @@ if './' not in sys.path:
 from src.utils import get_page_json
 
 
-async def update_atletas():
+async def update_atletas(pbar=None):
     json = await get_page_json('https://api.cartolafc.globo.com/atletas/mercado')
 
     pd.DataFrame(json['atletas']).drop(
@@ -28,6 +28,9 @@ async def update_atletas():
     ).sort_values(by=['atleta_id']).reset_index(drop=True).to_csv(
         'data/csv/atletas.csv'
     )
+
+    if pbar is not None:
+        pbar.progress(20)
 
 if __name__ == '__main__':
     asyncio.run(update_atletas())

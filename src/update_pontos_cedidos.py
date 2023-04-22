@@ -18,7 +18,25 @@ def read_pontos_cedidos(posicoes: list) -> dict[int, pd.DataFrame]:
     return dict(zip(posicoes, dfs))
 
 
-def update_pontos_cedidos_posicao(
+def update_pontos_cedidos_posicao_clube(
+    clube: int,
+    pontos_cedidos_df: pd.DataFrame,
+    rodada_atual: int,
+    rodada_posicao_df: pd.DataFrame,
+    confrontos_df: pd.DataFrame,
+):
+    adversario = confrontos_df.at[clube, str(rodada_atual)]
+
+    if not np.isnan(adversario):
+        rodada_posicao_clube_df = rodada_posicao_df.loc[
+            rodada_posicao_df['clube_id'] == adversario
+        ]
+        pontos_cedidos_df.loc[
+            pontos_cedidos_df['clube_id'] == clube, str(rodada_atual)
+        ] = np.mean(rodada_posicao_clube_df['pontuacao'])
+
+
+async def update_pontos_cedidos_posicao(
     pontos_cedidos_df: pd.DataFrame,
     posicao: int,
     rodada_atual: int,
@@ -28,22 +46,23 @@ def update_pontos_cedidos_posicao(
     # Seleciona todos os atletas de uma posição que atuaram na rodada
     rodada_posicao_df = rodada_df.loc[rodada_df['posicao_id'] == posicao]
 
-    for clube in pontos_cedidos_df['clube_id']:
-        adversario = confrontos_df.at[clube, str(rodada_atual)]
-        if np.isnan(adversario):
-            continue
-
-        rodada_posicao_clube_df = rodada_posicao_df.loc[
-            rodada_posicao_df['clube_id'] == adversario
+    await asyncio.gather(
+        *[
+            asyncio.to_thread(
+                update_pontos_cedidos_posicao_clube,
+                clube,
+                pontos_cedidos_df,
+                rodada_atual,
+                rodada_posicao_df,
+                confrontos_df,
+            )
+            for clube in pontos_cedidos_df['clube_id']
         ]
-        pontos_cedidos_df.loc[
-            pontos_cedidos_df['clube_id'] == clube, str(rodada_atual)
-        ] = np.mean(rodada_posicao_clube_df['pontuacao'])
-
+    )
     pontos_cedidos_df.to_csv(f'data/csv/pontos_cedidos/{posicao}.csv')
 
 
-async def update_pontos_cedidos():
+async def update_pontos_cedidos(pbar=None):
     atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
     rodada_atual = int(atletas_df.at[0, 'rodada_id'])
 
@@ -61,8 +80,7 @@ async def update_pontos_cedidos():
 
     await asyncio.gather(
         *[
-            asyncio.to_thread(
-                update_pontos_cedidos_posicao,
+            update_pontos_cedidos_posicao(
                 df,
                 posicao,
                 rodada_atual,
@@ -72,6 +90,9 @@ async def update_pontos_cedidos():
             for posicao, df in pontos_cedidos.items()
         ]
     )
+
+    if pbar is not None:
+        pbar.progress(20)
 
 
 if __name__ == '__main__':
