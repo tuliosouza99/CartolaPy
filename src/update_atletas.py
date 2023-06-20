@@ -22,6 +22,7 @@ async def update_atletas(pbar=None):
             'slug',
             'apelido_abreviado',
             'gato_mestre',
+            'minimo_para_valorizar',
             'nome',
             'foto',
         ]

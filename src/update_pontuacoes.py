@@ -10,17 +10,17 @@ if './' not in sys.path:
 from src.utils import get_page_json
 
 
-def create_pontuacoes(atletas: pd.DataFrame) -> pd.DataFrame:
-    pontuacoes = pd.DataFrame(
+def create_df(atletas: pd.DataFrame) -> pd.DataFrame:
+    df = pd.DataFrame(
         np.empty((atletas.shape[0], 38)) * np.nan,
         index=atletas['atleta_id'],
         columns=list(map(str, range(1, 39))),
     )
 
-    return pontuacoes.reset_index()
+    return df.reset_index()
 
 
-async def update_pontuacoes_rodada(rodada: int, pontuacoes_df: pd.DataFrame):
+async def update_pontuacoes_rodada(rodada: int, pontuacoes_df: pd.DataFrame, scouts_df: pd.DataFrame):
     json = await get_page_json(
         f'https://api.cartolafc.globo.com/atletas/pontuados/{rodada}'
     )
@@ -38,14 +38,21 @@ async def update_pontuacoes_rodada(rodada: int, pontuacoes_df: pd.DataFrame):
         str(rodada),
     ] = rodada_df['pontuacao'].to_list()
 
+    scouts_df.loc[
+        scouts_df['atleta_id'].isin(rodada_df['index'].to_list()),
+        str(rodada),
+    ] = rodada_df['scout'].to_list()
+
 
 async def update_pontuacoes(pbar=None):
     atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
     rodada_atual = int(atletas_df.at[0, 'rodada_id'])
-    pontuacoes_df = create_pontuacoes(atletas_df)
+    pontuacoes_df = create_df(atletas_df)
+    scouts_df = create_df(atletas_df)
 
-    await asyncio.gather(*[update_pontuacoes_rodada(rodada, pontuacoes_df) for rodada in range(1, rodada_atual + 1)])
+    await asyncio.gather(*[update_pontuacoes_rodada(rodada, pontuacoes_df, scouts_df) for rodada in range(1, rodada_atual + 1)])
     pontuacoes_df.to_csv('data/csv/pontuacoes.csv')
+    scouts_df.to_parquet('data/parquet/scouts.parquet')
 
     if pbar is not None:
         pbar.progress(20)

@@ -90,7 +90,6 @@ def atletas_clean_and_filter(
                 'posicao_id',
                 'status_id',
                 'preco_num',
-                'minimo_para_valorizar',
                 'Média',
                 'Desvio Padrão',
                 'Jogos',
@@ -103,7 +102,6 @@ def atletas_clean_and_filter(
                 'posicao_id': 'Posição',
                 'status_id': 'Status',
                 'preco_num': 'Preço',
-                'minimo_para_valorizar': 'Val. com',
             },
         )
         .query(query)
@@ -165,7 +163,6 @@ def plot_atletas_movel(
             ['Média'],
             {
                 'Preço': '{:.2f} C$',
-                'Val. com': '{:.2f}',
                 'Média': '{:.2f}',
                 'Desvio Padrão': '{:.2f}',
             },
@@ -225,7 +222,6 @@ def plot_atletas_mando(
             ['Média'],
             {
                 'Preço': '{:.2f} C$',
-                'Val. com': '{:.2f}',
                 'Média': '{:.2f}',
                 'Desvio Padrão': '{:.2f}',
                 'Jogos': '{:.0f}',
