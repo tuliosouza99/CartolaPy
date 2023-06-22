@@ -38,9 +38,9 @@ def get_pontuacoes_mando(
     row: tuple,
 ) -> pd.DataFrame:
     pontuacoes = [
-        row[int(rodada)]
+        getattr(row, f'round_{rodada}')
         for rodada in partidas_mando_dict[clube_id]
-        if rodada != '' and ~np.isnan(row[int(rodada)])
+        if rodada != '' and ~np.isnan(getattr(row, f'round_{rodada}'))
     ]
 
     # Clube/Atleta atuou em alguma partida como Mandante/Visitante
@@ -129,7 +129,7 @@ def color_status(status: str) -> str:
 
 
 @st.cache_resource
-def plot_atletas_movel(
+def plot_atletas_geral(
     atletas_df: pd.DataFrame,
     clubes: list[str],
     posicoes: list[str],
@@ -174,24 +174,24 @@ def plot_atletas_movel(
 @st.cache_resource
 def plot_atletas_mando(
     atletas_df: pd.DataFrame,
-    rodada_inicial: int,
-    rodada_atual: int,
     clubes: list[str],
     posicoes: list[str],
     status: list[str],
     min_jogos: int,
     precos: tuple[int, int],
+    rodadas: tuple[int, int],
     mando_flag: int,
 ) -> pd.DataFrame.style:
     pontuacoes_df = (
         pd.read_csv('data/csv/pontuacoes.csv', index_col=0)
         .set_index('atleta_id')
-        .loc[:, str(rodada_inicial) : str(rodada_atual)]
+        .loc[:, str(rodadas[0]) : str(rodadas[1])]
+        .rename(lambda col: f'round_{col}', axis='columns')
     )
     mandos_df = (
         pd.read_csv('data/csv/mandos.csv', index_col=0)
         .set_index('clube_id')
-        .loc[:, str(rodada_inicial) : str(rodada_atual)]
+        .loc[:, str(rodadas[0]) : str(rodadas[1])]
     )
     rodadas_mando_dict = create_mando_dict(mandos_df, mando_flag)
 
@@ -232,7 +232,7 @@ def plot_atletas_mando(
 
 
 @st.cache_resource
-def plot_pontos_cedidos_movel(
+def plot_pontos_cedidos_geral(
     pontos_cedidos_posicao: pd.DataFrame, rodadas: tuple
 ) -> pd.DataFrame.style:
     pontos_cedidos_posicao = pontos_cedidos_posicao.loc[
@@ -262,19 +262,19 @@ def plot_pontos_cedidos_movel(
 @st.cache_resource
 def plot_pontos_cedidos_mando(
     pontos_cedidos_posicao: pd.DataFrame,
-    rodada_inicial: int,
-    rodada_atual: int,
+    rodadas: tuple,
     mando_flag: int,
 ) -> pd.DataFrame.style:
     pontos_cedidos_posicao = pontos_cedidos_posicao.loc[
-        :, str(rodada_inicial) : str(rodada_atual)
-    ]
+        :, str(rodadas[0]) : str(rodadas[1])
+    ].rename(lambda col: f'round_{col}', axis='columns')
+
     clubes_dict = load_dict('clubes')
 
     mandos_df = (
         pd.read_csv('data/csv/mandos.csv', index_col=0)
         .set_index('clube_id')
-        .loc[:, str(rodada_inicial) : str(rodada_atual)]
+        .loc[:, str(rodadas[0]) : str(rodadas[1])]
     )
     rodadas_mando_dict = create_mando_dict(mandos_df, mando_flag)
 

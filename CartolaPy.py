@@ -52,7 +52,7 @@ async def main():
 
     media_opcao = st.sidebar.radio(
         'Selecione um Tipo de Média',
-        ['Móvel', 'Mandante', 'Visitante'],
+        ['Geral', 'Mandante', 'Visitante'],
         key='Media_ppcao',
     )
 
@@ -60,7 +60,7 @@ async def main():
     st.title('Jogadores')
     rodadas_atletas = (1, 1)
 
-    if media_opcao == 'Móvel' and rodada_atual > 1:
+    if rodada_atual > 1:
         rodadas_atletas = st.slider(
             'Selecione um intervalo de rodadas',
             RODADA_INICIAL,
@@ -93,9 +93,9 @@ async def main():
             status_escolhidos = st.multiselect('Filtro por Status', status_list)
 
     with container_atletas:
-        if media_opcao == 'Móvel':
+        if media_opcao == 'Geral':
             st.dataframe(
-                P.plot_atletas_movel(
+                P.plot_atletas_geral(
                     atletas_df,
                     clubes_escolhidos,
                     posicoes_escolhidas,
@@ -109,13 +109,12 @@ async def main():
             st.dataframe(
                 P.plot_atletas_mando(
                     atletas_df.set_index('atleta_id'),
-                    RODADA_INICIAL,
-                    rodada_atual,
                     clubes_escolhidos,
                     posicoes_escolhidas,
                     status_escolhidos,
                     min_jogos,
                     precos_escolhidos,
+                    rodadas_atletas,
                     mando_flag=1,
                 )
             )
@@ -123,13 +122,12 @@ async def main():
             st.dataframe(
                 P.plot_atletas_mando(
                     atletas_df.set_index('atleta_id'),
-                    RODADA_INICIAL,
-                    rodada_atual,
                     clubes_escolhidos,
                     posicoes_escolhidas,
                     status_escolhidos,
                     min_jogos,
                     precos_escolhidos,
+                    rodadas_atletas,
                     mando_flag=0,
                 )
             )
@@ -139,7 +137,7 @@ async def main():
     rodadas_pontos_cedidos = (1, 1)
     container_pontos_cedidos = st.container()
 
-    if media_opcao == 'Móvel' and rodada_atual > 1:
+    if rodada_atual > 1:
         rodadas_pontos_cedidos = st.slider(
             'Selecione um intervalo de rodadas',
             RODADA_INICIAL,
@@ -161,14 +159,14 @@ async def main():
         f'data/csv/pontos_cedidos/{abreviacao2posicao[posicaoEscolhida]}.csv'
     ).set_index('clube_id')
 
-    if media_opcao == 'Móvel':
+    if media_opcao == 'Geral':
         with container_pontos_cedidos:
             st.write(
                 'Quantos pontos um time cede em média para um atleta de uma determinada posição.'
             )
 
         st.dataframe(
-            P.plot_pontos_cedidos_movel(pontos_cedidos_posicao, rodadas_pontos_cedidos)
+            P.plot_pontos_cedidos_geral(pontos_cedidos_posicao, rodadas_pontos_cedidos)
         )
     elif media_opcao == 'Mandante':
         with container_pontos_cedidos:
@@ -178,7 +176,7 @@ async def main():
 
         st.dataframe(
             P.plot_pontos_cedidos_mando(
-                pontos_cedidos_posicao, RODADA_INICIAL, rodada_atual, mando_flag=0
+                pontos_cedidos_posicao, rodadas_pontos_cedidos, mando_flag=0
             )
         )
     else:
@@ -188,7 +186,7 @@ async def main():
             )
         st.dataframe(
             P.plot_pontos_cedidos_mando(
-                pontos_cedidos_posicao, RODADA_INICIAL, rodada_atual, mando_flag=1
+                pontos_cedidos_posicao, rodadas_pontos_cedidos, mando_flag=1
             )
         )
 
