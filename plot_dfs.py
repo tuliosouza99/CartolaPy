@@ -167,7 +167,12 @@ def plot_pontos_cedidos_geral(
             }
         )
         .dropna(subset=['Média'])
-        .pipe(U.plot_df, ['Média'], {'Média': '{:.2f}', 'Desvio Padrão': '{:.2f}'})
+        .pipe(
+            U.plot_df,
+            ['Média'],
+            {'Média': '{:.2f}', 'Desvio Padrão': '{:.2f}'},
+            drop_index=True,
+        )
     )
 
 
@@ -211,5 +216,26 @@ def plot_pontos_cedidos_mando(
             U.plot_df,
             ['Média'],
             {'Média': '{:.2f}', 'Desvio Padrão': '{:.2f}', 'Jogos': '{:.0f}'},
+            drop_index=True,
         )
     )
+
+
+@st.cache_resource
+def get_player_scouts(atleta_id: int, rodadas: tuple[int, int]):
+    try:
+        return (
+            pd.DataFrame(
+                pd.read_parquet('data/parquet/scouts.parquet')
+                .set_index('atleta_id')
+                .loc[atleta_id, str(rodadas[0]) : str(rodadas[1])]
+                .dropna()
+                .tolist()
+            )
+            .dropna(axis='columns', how='all')
+            .sum()
+            .astype(int)
+            .to_dict()
+        )
+    except Exception:
+        return {}

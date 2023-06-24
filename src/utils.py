@@ -47,25 +47,27 @@ def get_pontuacoes_mando(
     partidas_mando_dict: dict[int, list[str]],
     clube_id: int,
     row_pontuacoes: tuple,
-    row_scouts: tuple,
+    row_scouts: tuple | None = None,
 ) -> pd.DataFrame:
     pontuacoes = [
         getattr(row_pontuacoes, f'round_{rodada}')
         for rodada in partidas_mando_dict[clube_id]
         if rodada != '' and ~np.isnan(getattr(row_pontuacoes, f'round_{rodada}'))
     ]
-    pontuacoes_basicas = [
-        getattr(row_scouts, f'round_{rodada}')
-        for rodada in partidas_mando_dict[clube_id]
-        if rodada != '' and ~np.isnan(getattr(row_scouts, f'round_{rodada}'))
-    ]
+    if row_scouts is not None:
+        pontuacoes_basicas = [
+            getattr(row_scouts, f'round_{rodada}')
+            for rodada in partidas_mando_dict[clube_id]
+            if rodada != '' and ~np.isnan(getattr(row_scouts, f'round_{rodada}'))
+        ]
 
     # Clube/Atleta atuou em alguma partida como Mandante/Visitante
     if len(pontuacoes) > 0:
         df.at[row_pontuacoes[0], 'Média'] = np.mean(pontuacoes)
-        df.at[row_pontuacoes[0], 'Média Básica'] = np.mean(pontuacoes_basicas)
         df.at[row_pontuacoes[0], 'Desvio Padrão'] = np.std(pontuacoes)
         df.at[row_pontuacoes[0], 'Jogos'] = len(pontuacoes)
+        if row_scouts is not None:
+            df.at[row_pontuacoes[0], 'Média Básica'] = np.mean(pontuacoes_basicas)
 
     return df
 
@@ -127,10 +129,13 @@ def atletas_clean_and_filter(
     )
 
 
-def plot_df(df: pd.DataFrame, col: list, format: dict) -> pd.DataFrame.style:
+def plot_df(
+    df: pd.DataFrame, col: list, format: dict, drop_index: bool = False
+) -> pd.DataFrame.style:
     return (
         df.sort_values(by=col[0], ascending=False)
-        .reset_index(drop=True)
+        .reset_index(drop=drop_index)
+        .rename(columns={'atleta_id': 'ID'})
         .style.background_gradient(cmap='YlGn', subset=col)
         .format(format)
     )

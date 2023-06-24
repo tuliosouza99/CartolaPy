@@ -30,6 +30,8 @@ async def main():
     atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
     rodada_atual = int(atletas_df.at[0, 'rodada_id'])
 
+    st.set_page_config(layout='wide', page_icon=':tophat:')
+
     # Menu Lateral
     st.sidebar.markdown(
         "<h1 style='text-align: center;'>Cartola"
@@ -97,7 +99,7 @@ async def main():
         if media_opcao == 'Geral':
             st.dataframe(
                 P.plot_atletas_geral(
-                    atletas_df,
+                    atletas_df.set_index('atleta_id'),
                     clubes_escolhidos,
                     posicoes_escolhidas,
                     status_escolhidos,
@@ -132,6 +134,15 @@ async def main():
                     mando_flag=0,
                 )
             )
+    # Scouts Jogador
+    st.subheader('Scouts Jogador')
+    st.write('Scouts que um jogador obteve no intervalo de rodadas selecionado')
+    atleta_id = st.number_input('Selecione o ID do Jogador', min_value=0, key='id_jogador')
+    json_dict = P.get_player_scouts(atleta_id, rodadas_atletas)
+    if len(json_dict) > 0:
+        st.json(json_dict)
+    else:
+        st.warning('Jogador não encontrado!')
 
     # Pontos Cedidos
     st.title('Pontos Cedidos')
@@ -147,7 +158,7 @@ async def main():
             key='rodadas_pontos_cedidos',
         )
 
-    posicaoEscolhida = st.selectbox('Selecione uma Posição', posicoes_list)
+    posicao_escolhida = st.selectbox('Selecione uma Posição', posicoes_list)
     abreviacao2posicao = {
         'GOL': '1',
         'LAT': '2',
@@ -157,7 +168,7 @@ async def main():
         'TEC': '6',
     }
     pontos_cedidos_posicao = pd.read_csv(
-        f'data/csv/pontos_cedidos/{abreviacao2posicao[posicaoEscolhida]}.csv'
+        f'data/csv/pontos_cedidos/{abreviacao2posicao[posicao_escolhida]}.csv'
     ).set_index('clube_id')
 
     if media_opcao == 'Geral':
