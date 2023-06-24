@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 import plot_dfs as P
+import src.utils as U
 from src.update_atletas import update_atletas
 from src.update_confrontos_or_mandos import update_confrontos_or_mandos
 from src.update_pontos_cedidos import update_pontos_cedidos
@@ -18,9 +19,9 @@ RODADA_INICIAL = 1
 
 async def main():
     clubes_dict, posicoes_dict, status_dict = await asyncio.gather(
-        P.load_dict_async('clubes'),
-        P.load_dict_async('posicoes'),
-        P.load_dict_async('status'),
+        U.load_dict_async('clubes'),
+        U.load_dict_async('posicoes'),
+        U.load_dict_async('status'),
     )
     clubes_list = sorted(clubes_dict.values())
     posicoes_list = posicoes_dict.values()
