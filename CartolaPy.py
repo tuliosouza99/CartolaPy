@@ -32,6 +32,10 @@ async def main():
 
     st.set_page_config(layout='wide', page_icon=':tophat:')
 
+    if rodada_atual == 1:
+        st.info('Espere o mercado abrir após a primeira rodada para usar o app!')
+        st.stop()
+
     # Menu Lateral
     st.sidebar.markdown(
         "<h1 style='text-align: center;'>Cartola"
@@ -39,17 +43,19 @@ async def main():
         unsafe_allow_html=True,
     )
 
-    atualizarTabelas = st.sidebar.button('Atualizar Tabelas', key='atualizar_tabelas')
-    if atualizarTabelas:
+    atualizar_tabelas = st.sidebar.button('Atualizar Tabelas', key='atualizar_tabelas')
+    if atualizar_tabelas:
         with st.sidebar.empty():
             pbar = st.progress(0, text='Atualizando Tabelas...')
 
             await asyncio.gather(
-                update_atletas(pbar),
-                update_confrontos_or_mandos('confrontos', pbar),
-                update_confrontos_or_mandos('mandos', pbar),
+                update_atletas(pbar=pbar),
+                update_confrontos_or_mandos('confrontos', pbar=pbar),
+                update_confrontos_or_mandos('mandos', pbar=pbar),
             )
-            await asyncio.gather(update_pontuacoes(pbar), update_pontos_cedidos(pbar))
+            await asyncio.gather(
+                update_pontuacoes(pbar=pbar), update_pontos_cedidos(pbar=pbar)
+            )
             st.success('Tabelas Atualizadas!')
             st.experimental_rerun()
 
@@ -143,7 +149,9 @@ async def main():
     if len(atletas_ids) > 0:
         if media_opcao == 'Geral':
             st.plotly_chart(
-                P.plot_player_scouts(atletas_ids, atletas_out_index2names, rodadas_atletas),
+                P.plot_player_scouts(
+                    atletas_ids, atletas_out_index2names, rodadas_atletas
+                ),
                 use_container_width=True,
             )
         elif media_opcao == 'Mandante':

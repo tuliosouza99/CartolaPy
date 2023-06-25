@@ -1,5 +1,6 @@
 import sys
 import asyncio
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -44,13 +45,15 @@ async def update_pontuacoes_rodada(rodada: int, pontuacoes_df: pd.DataFrame, sco
     ] = rodada_df['scout'].to_list()
 
 
-async def update_pontuacoes(pbar=None):
+async def update_pontuacoes(pbar=None, first_round=False):
     atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
     rodada_atual = int(atletas_df.at[0, 'rodada_id'])
     pontuacoes_df = create_df(atletas_df)
     scouts_df = create_df(atletas_df)
 
-    await asyncio.gather(*[update_pontuacoes_rodada(rodada, pontuacoes_df, scouts_df) for rodada in range(1, rodada_atual + 1)])
+    if not first_round:
+        await asyncio.gather(*[update_pontuacoes_rodada(rodada, pontuacoes_df, scouts_df) for rodada in range(1, rodada_atual + 1)])
+
     pontuacoes_df.to_csv('data/csv/pontuacoes.csv')
     scouts_df.to_parquet('data/parquet/scouts.parquet')
 
@@ -59,4 +62,11 @@ async def update_pontuacoes(pbar=None):
 
 
 if __name__ == '__main__':
-    asyncio.run(update_pontuacoes())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--first_round', action='store_true')
+    args = parser.parse_args()
+
+    if args.first_round:
+        asyncio.run(update_pontuacoes(first_round=True))
+    else:
+        asyncio.run(update_pontuacoes())
