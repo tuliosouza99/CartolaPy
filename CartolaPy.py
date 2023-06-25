@@ -97,52 +97,77 @@ async def main():
 
     with container_atletas:
         if media_opcao == 'Geral':
-            st.dataframe(
-                P.plot_atletas_geral(
-                    atletas_df.set_index('atleta_id'),
-                    clubes_escolhidos,
-                    posicoes_escolhidas,
-                    status_escolhidos,
-                    min_jogos,
-                    precos_escolhidos,
-                    rodadas_atletas,
-                )
+            atletas_out_index2names, atletas_out_df = P.plot_atletas_geral(
+                atletas_df.set_index('atleta_id'),
+                clubes_escolhidos,
+                posicoes_escolhidas,
+                status_escolhidos,
+                min_jogos,
+                precos_escolhidos,
+                rodadas_atletas,
             )
         elif media_opcao == 'Mandante':
-            st.dataframe(
-                P.plot_atletas_mando(
-                    atletas_df.set_index('atleta_id'),
-                    clubes_escolhidos,
-                    posicoes_escolhidas,
-                    status_escolhidos,
-                    min_jogos,
-                    precos_escolhidos,
-                    rodadas_atletas,
-                    mando_flag=1,
-                )
+            atletas_out_index2names, atletas_out_df = P.plot_atletas_mando(
+                atletas_df.set_index('atleta_id'),
+                clubes_escolhidos,
+                posicoes_escolhidas,
+                status_escolhidos,
+                min_jogos,
+                precos_escolhidos,
+                rodadas_atletas,
+                mando_flag=1,
             )
         else:
-            st.dataframe(
-                P.plot_atletas_mando(
-                    atletas_df.set_index('atleta_id'),
-                    clubes_escolhidos,
-                    posicoes_escolhidas,
-                    status_escolhidos,
-                    min_jogos,
-                    precos_escolhidos,
-                    rodadas_atletas,
-                    mando_flag=0,
-                )
+            atletas_out_index2names, atletas_out_df = P.plot_atletas_mando(
+                atletas_df.set_index('atleta_id'),
+                clubes_escolhidos,
+                posicoes_escolhidas,
+                status_escolhidos,
+                min_jogos,
+                precos_escolhidos,
+                rodadas_atletas,
+                mando_flag=0,
             )
+
+        st.dataframe(atletas_out_df)
+
     # Scouts Jogador
-    st.subheader('Scouts Jogador')
-    st.write('Scouts que um jogador obteve no intervalo de rodadas selecionado')
-    atleta_id = st.number_input('Selecione o ID do Jogador', min_value=0, key='id_jogador')
-    json_dict = P.get_player_scouts(atleta_id, rodadas_atletas)
-    if len(json_dict) > 0:
-        st.json(json_dict)
-    else:
-        st.warning('Jogador não encontrado!')
+    st.subheader('Comparação de Scouts')
+    atletas_ids = st.multiselect(
+        'Selecione até 5 IDs de Jogadores',
+        options=atletas_out_index2names.keys(),
+        max_selections=5,
+        key='id_jogador',
+    )
+
+    if len(atletas_ids) > 0:
+        if media_opcao == 'Geral':
+            st.plotly_chart(
+                P.plot_player_scouts(atletas_ids, atletas_out_index2names, rodadas_atletas),
+                use_container_width=True,
+            )
+        elif media_opcao == 'Mandante':
+            st.plotly_chart(
+                P.plot_player_scouts(
+                    atletas_ids,
+                    atletas_out_index2names,
+                    rodadas_atletas,
+                    atletas_df=atletas_df.set_index('atleta_id'),
+                    mando_flag=1,
+                ),
+                use_container_width=True,
+            )
+        else:
+            st.plotly_chart(
+                P.plot_player_scouts(
+                    atletas_ids,
+                    atletas_out_index2names,
+                    rodadas_atletas,
+                    atletas_df=atletas_df.set_index('atleta_id'),
+                    mando_flag=0,
+                ),
+                use_container_width=True,
+            )
 
     # Pontos Cedidos
     st.title('Pontos Cedidos')

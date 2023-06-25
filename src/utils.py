@@ -37,9 +37,9 @@ def create_mando_dict(mandos_df: pd.DataFrame, mando_flag: int) -> dict[int, lis
     rodadas_mando_list = (
         mandos_df.eq(mando_flag).dot(mandos_df.columns + ',').str.rstrip(',')
     )
-    rodadasMandoList = [mandosClube.split(',') for mandosClube in rodadas_mando_list]
+    rodadas_mando_list = [mandos_clube.split(',') for mandos_clube in rodadas_mando_list]
 
-    return dict(zip(mandos_df.index, rodadasMandoList))
+    return dict(zip(mandos_df.index, rodadas_mando_list))
 
 
 def get_pontuacoes_mando(
@@ -48,7 +48,7 @@ def get_pontuacoes_mando(
     clube_id: int,
     row_pontuacoes: tuple,
     row_scouts: tuple | None = None,
-) -> pd.DataFrame:
+):
     pontuacoes = [
         getattr(row_pontuacoes, f'round_{rodada}')
         for rodada in partidas_mando_dict[clube_id]
@@ -79,7 +79,7 @@ def atletas_clean_and_filter(
     status: list[str],
     min_jogos: int,
     precos: tuple[int, int],
-) -> pd.DataFrame:
+):
     clubes_dict, status_dict, posicoes_dict = (
         load_dict('clubes'),
         load_dict('status'),
@@ -129,19 +129,7 @@ def atletas_clean_and_filter(
     )
 
 
-def plot_df(
-    df: pd.DataFrame, col: list, format: dict, drop_index: bool = False
-) -> pd.DataFrame.style:
-    return (
-        df.sort_values(by=col[0], ascending=False)
-        .reset_index(drop=drop_index)
-        .rename(columns={'atleta_id': 'ID'})
-        .style.background_gradient(cmap='YlGn', subset=col)
-        .format(format)
-    )
-
-
-def color_status(status: str) -> str:
+def color_status(status: str):
     if status == 'Provável':
         color = 'limegreen'
     elif status == 'Dúvida':
@@ -152,7 +140,7 @@ def color_status(status: str) -> str:
     return f'color: {color}'
 
 
-def get_basic_points(scouts: dict | float | None) -> float:
+def get_basic_points(scouts: dict | float | None):
     if not isinstance(scouts, Mapping) and (scouts is None or np.isnan(scouts)):
         return np.nan
 

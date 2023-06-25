@@ -1,11 +1,26 @@
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 import src.utils as U
 
+MAX_CACHE_ENTRIES = 3
 
-@st.cache_resource
+
+def plot_df(
+    df: pd.DataFrame, col: list, format: dict, drop_index: bool = False
+):
+    return (
+        df.sort_values(by=col[0], ascending=False)
+        .reset_index(drop=drop_index)
+        .rename(columns={'atleta_id': 'ID'})
+        .style.background_gradient(cmap='YlGn', subset=col)
+        .format(format)
+    )
+
+
+@st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
 def plot_atletas_geral(
     atletas_df: pd.DataFrame,
     clubes: list[str],
@@ -14,7 +29,7 @@ def plot_atletas_geral(
     min_jogos: int,
     precos: tuple[int, int],
     rodadas: tuple[int, int],
-) -> pd.DataFrame.style:
+):
     pontuacoes_df = (
         pd.read_csv('data/csv/pontuacoes.csv', index_col=0)
         .set_index('atleta_id')
@@ -34,7 +49,7 @@ def plot_atletas_geral(
         )
     )
 
-    return (
+    atletas_df = (
         atletas_df.assign(
             **{
                 'Média': np.nanmean(np.array(pontuacoes_df), axis=1, keepdims=True),
@@ -49,8 +64,12 @@ def plot_atletas_geral(
         )
         .dropna(subset=['Média'])
         .pipe(U.atletas_clean_and_filter, clubes, posicoes, status, min_jogos, precos)
-        .pipe(
-            U.plot_df,
+    )
+
+    return (
+        dict(zip(atletas_df.index.to_series(), atletas_df['Nome'])),
+        atletas_df.pipe(
+            plot_df,
             ['Média'],
             {
                 'Preço': '{:.2f} C$',
@@ -58,12 +77,11 @@ def plot_atletas_geral(
                 'Média Básica': '{:.2f}',
                 'Desvio Padrão': '{:.2f}',
             },
-        )
-        .applymap(U.color_status, subset=['Status'])
+        ).applymap(U.color_status, subset=['Status']),
     )
 
 
-@st.cache_resource
+@st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
 def plot_atletas_mando(
     atletas_df: pd.DataFrame,
     clubes: list[str],
@@ -73,7 +91,7 @@ def plot_atletas_mando(
     precos: tuple[int, int],
     rodadas: tuple[int, int],
     mando_flag: int,
-) -> pd.DataFrame.style:
+):
     pontuacoes_df = (
         pd.read_csv('data/csv/pontuacoes.csv', index_col=0)
         .set_index('atleta_id')
@@ -118,18 +136,19 @@ def plot_atletas_mando(
             atletas_df, rodadas_mando_dict, clube_id, row_pontuacoes, row_scouts
         )
 
+    atletas_df = atletas_df.dropna(subset=['Média']).pipe(
+        U.atletas_clean_and_filter,
+        clubes,
+        posicoes,
+        status,
+        min_jogos,
+        precos,
+    )
+
     return (
-        atletas_df.dropna(subset=['Média'])
-        .pipe(
-            U.atletas_clean_and_filter,
-            clubes,
-            posicoes,
-            status,
-            min_jogos,
-            precos,
-        )
-        .pipe(
-            U.plot_df,
+        dict(zip(atletas_df.index.to_series(), atletas_df['Nome'])),
+        atletas_df.pipe(
+            plot_df,
             ['Média'],
             {
                 'Preço': '{:.2f} C$',
@@ -138,15 +157,12 @@ def plot_atletas_mando(
                 'Desvio Padrão': '{:.2f}',
                 'Jogos': '{:.0f}',
             },
-        )
-        .applymap(U.color_status, subset=['Status'])
+        ).applymap(U.color_status, subset=['Status']),
     )
 
 
-@st.cache_resource
-def plot_pontos_cedidos_geral(
-    pontos_cedidos_posicao: pd.DataFrame, rodadas: tuple
-) -> pd.DataFrame.style:
+@st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
+def plot_pontos_cedidos_geral(pontos_cedidos_posicao: pd.DataFrame, rodadas: tuple):
     pontos_cedidos_posicao = pontos_cedidos_posicao.loc[
         :, str(rodadas[0]) : str(rodadas[1])
     ]
@@ -168,7 +184,7 @@ def plot_pontos_cedidos_geral(
         )
         .dropna(subset=['Média'])
         .pipe(
-            U.plot_df,
+            plot_df,
             ['Média'],
             {'Média': '{:.2f}', 'Desvio Padrão': '{:.2f}'},
             drop_index=True,
@@ -176,12 +192,12 @@ def plot_pontos_cedidos_geral(
     )
 
 
-@st.cache_resource
+@st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
 def plot_pontos_cedidos_mando(
     pontos_cedidos_posicao: pd.DataFrame,
     rodadas: tuple,
     mando_flag: int,
-) -> pd.DataFrame.style:
+):
     pontos_cedidos_posicao = pontos_cedidos_posicao.loc[
         :, str(rodadas[0]) : str(rodadas[1])
     ].rename(lambda col: f'round_{col}', axis='columns')
@@ -213,7 +229,7 @@ def plot_pontos_cedidos_mando(
         .reset_index()
         .assign(Clube=lambda _df: _df['Clube'].map(clubes_dict))
         .pipe(
-            U.plot_df,
+            plot_df,
             ['Média'],
             {'Média': '{:.2f}', 'Desvio Padrão': '{:.2f}', 'Jogos': '{:.0f}'},
             drop_index=True,
@@ -221,21 +237,72 @@ def plot_pontos_cedidos_mando(
     )
 
 
-@st.cache_resource
-def get_player_scouts(atleta_id: int, rodadas: tuple[int, int]):
-    try:
-        return (
-            pd.DataFrame(
-                pd.read_parquet('data/parquet/scouts.parquet')
-                .set_index('atleta_id')
-                .loc[atleta_id, str(rodadas[0]) : str(rodadas[1])]
-                .dropna()
-                .tolist()
-            )
-            .dropna(axis='columns', how='all')
-            .sum()
-            .astype(int)
-            .to_dict()
+@st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
+def plot_player_scouts(
+    atletas_ids: list[str],
+    index2name: dict,
+    rodadas: tuple[int, int],
+    atletas_df: pd.DataFrame | None = None,
+    mando_flag: int | None = None,
+):
+    if mando_flag is not None:
+        mandos_df = (
+            pd.read_csv('data/csv/mandos.csv', index_col=0)
+            .set_index('clube_id')
+            .loc[:, str(rodadas[0]) : str(rodadas[1])]
         )
-    except Exception:
-        return {}
+        rodadas_mando_dict = U.create_mando_dict(mandos_df, mando_flag)
+        rodadas_atletas = [
+            rodadas_mando_dict[atletas_df.at[int(atleta_id), 'clube_id']]
+            for atleta_id in atletas_ids
+        ]
+    else:
+        rodadas_atletas = [
+            [str(rodada) for rodada in range(rodadas[0], rodadas[1] + 1)]
+            for _ in atletas_ids
+        ]
+
+    df = (
+        pd.DataFrame(
+            [
+                (
+                    pd.DataFrame(
+                        pd.read_parquet('data/parquet/scouts.parquet')
+                        .set_index('atleta_id')
+                        .loc[int(atleta_id), rodadas_atleta]
+                        .dropna()
+                        .tolist()
+                    )
+                    .dropna(axis='columns', how='all')
+                    .sum()
+                    .astype(int)
+                    .to_dict()
+                )
+                for atleta_id, rodadas_atleta in zip(atletas_ids, rodadas_atletas)
+            ]
+        )
+        .fillna(0)
+        .assign(Nome=[index2name[int(atleta_id)] for atleta_id in atletas_ids])
+    )
+
+    fig = go.Figure()
+
+    for row in df.itertuples(index=False):
+        fig.add_trace(
+            go.Scatterpolar(
+                r=row[:-1],
+                theta=df.columns[:-1],
+                name=row[-1],
+                meta=[row[-1]],
+                hovertemplate='<b>%{meta[0]}</b><br>Scout: %{theta}<br>Total: %{r}<extra></extra>',
+            )
+        )
+
+    fig.update_layout(
+        polar=dict(radialaxis=dict(visible=True)),
+        template='plotly_dark',
+        width=960,
+        height=720,
+    )
+
+    return fig
