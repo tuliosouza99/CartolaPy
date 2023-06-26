@@ -1,4 +1,5 @@
 import asyncio
+import argparse
 import sys
 
 import numpy as np
@@ -29,7 +30,7 @@ def create_confrontos_or_mandos(table_name: str):
     ).reset_index().rename({'id': 'clube_id'}).to_csv(f'data/csv/{table_name}.csv')
 
 
-async def create_pontos_cedidos():
+async def create_pontos_cedidos_dfs():
     posicoes_df = pd.read_csv('data/csv/posicoes.csv', index_col=0)
     clubes_df = pd.read_csv('data/csv/clubes.csv', index_col=0)
 
@@ -53,14 +54,28 @@ def create_pontos_cedidos_posicao(clubes_df: pd.DataFrame, posicao: int):
     )
 
 
-async def main():
+async def main(create_mandos_and_confrontos: bool, create_pontos_cedidos: bool):
     await create_clubes_and_posicoes()
-    await asyncio.gather(
-        asyncio.to_thread(create_confrontos_or_mandos, 'confrontos'),
-        asyncio.to_thread(create_confrontos_or_mandos, 'mandos'),
-        create_pontos_cedidos(),
-    )
+
+    if create_pontos_cedidos:
+        await create_pontos_cedidos_dfs()
+
+    if create_mandos_and_confrontos:
+        await asyncio.gather(
+            asyncio.to_thread(create_confrontos_or_mandos, 'confrontos'),
+            asyncio.to_thread(create_confrontos_or_mandos, 'mandos'),
+        )
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--create_mandos_and_confrontos', action='store_true')
+    parser.add_argument('--create_pontos_cedidos', action='store_true')
+    args = parser.parse_args()
+
+    asyncio.run(
+        main(
+            create_mandos_and_confrontos=args.create_mandos_and_confrontos,
+            create_pontos_cedidos=args.create_pontos_cedidos,
+        )
+    )

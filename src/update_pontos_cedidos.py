@@ -1,8 +1,10 @@
 import sys
 import asyncio
+import argparse
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 if './' not in sys.path:
     sys.path.append('./')
@@ -62,9 +64,15 @@ async def update_pontos_cedidos_posicao(
     pontos_cedidos_df.to_csv(f'data/csv/pontos_cedidos/{posicao}.csv')
 
 
-async def update_pontos_cedidos(pbar=None):
-    atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
-    rodada_atual = int(atletas_df.at[0, 'rodada_id'])
+async def update_pontos_cedidos(pbar=None, rodada=None):
+    if rodada is None:
+        atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
+        rodada = int(atletas_df.at[0, 'rodada_id'])
+
+    json = await get_page_json(
+        f'https://api.cartolafc.globo.com/atletas/pontuados/{rodada}'
+    )
+    rodada_df = pd.DataFrame(json['atletas']).T
 
     posicoes_df = pd.read_csv('data/csv/posicoes.csv', index_col=0)
     pontos_cedidos = read_pontos_cedidos(posicoes_df['id'].tolist())
@@ -73,17 +81,12 @@ async def update_pontos_cedidos(pbar=None):
         'clube_id'
     )
 
-    json = await get_page_json(
-        f'https://api.cartolafc.globo.com/atletas/pontuados/{rodada_atual}'
-    )
-    rodada_df = pd.DataFrame(json['atletas']).T
-
     await asyncio.gather(
         *[
             update_pontos_cedidos_posicao(
                 df,
                 posicao,
-                rodada_atual,
+                rodada,
                 rodada_df,
                 confrontos_df,
             )
@@ -95,5 +98,37 @@ async def update_pontos_cedidos(pbar=None):
         pbar.progress(20)
 
 
+async def update_pontos_cedidos_multiple_rounds(rodadas: list[int]):
+    for rodada in tqdm(rodadas):
+        await update_pontos_cedidos(rodada=rodada)
+
+
 if __name__ == '__main__':
-    asyncio.run(update_pontos_cedidos())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--rounds', nargs='+', type=int)
+    parser.add_argument('--all_rounds', action='store_true')
+    args = parser.parse_args()
+
+    if args.all_rounds and args.rounds is not None:
+        raise ValueError('Cannot use --rounds with --all_rounds')
+
+    elif args.all_rounds:
+        print('Atualizando pontos cedidos de todas as rodadas...')
+
+        atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
+        rodada_atual = int(atletas_df.at[0, 'rodada_id'])
+        asyncio.run(
+            update_pontos_cedidos_multiple_rounds(list(range(1, rodada_atual + 1)))
+        )
+
+    elif args.rounds is not None:
+        atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
+        rodada_atual = int(atletas_df.at[0, 'rodada_id'])
+        rodadas = [rodada for rodada in args.rounds if rodada <= rodada_atual]
+
+        print(f'Atualizando pontos cedidos das rodadas {rodadas}...')
+        asyncio.run(update_pontos_cedidos_multiple_rounds(rodadas))
+
+    else:
+        print('Atualizando pontos cedidos da rodada atual...')
+        asyncio.run(update_pontos_cedidos())

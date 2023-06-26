@@ -13,11 +13,13 @@ pip install -r requirements.txt
 ```
 
 3. Prepare os dados
-    - Caso a temporada do Brasileirão já tenha iniciado, ou você tenha esquecido de atualizar os dados antes de uma determinada rodada, baixe a versão mais recente das tabelas referentes a uma determinada temporada [neste link](). Em seguida, coloque-as na pasta `data/` na raiz do projeto.
+    - Caso o Brasileirão ainda não tenha iniciado e o mercado já esteja aberto para a temporada, execute o comando `bash scripts/pre_season_script.sh`.
 
-    - Caso o Brasileirão ainda não tenha iniciado e o mercado já esteja aberto para a temporada, execute o comando `bash pre_season_script.sh`.
+    - Caso você tenha ingressado no projeto após o início do Brasileirão, ou caso você tenha esquecido de atualizar os dados de alguma rodada diferente da última rodada válida, execute o comando `bash scripts/mid_season_script.sh`. **Obs: Caso você não deseje recriar as tabelas de pontos cedidos ou de mandos e confrontos do zero, edite o script conforme as instruções contidas nele.**
 
-    Para ambos os casos, é esperado que a pasta `data/` contenha a seguinte estrutura:
+    - Caso falte apenas coletar os dados da última rodada válida, ou você deseja apenas coletar os dados mais recentes do mercado, siga para a etapa 4 e clique no botão "Atualizar Tabelas" no canto superior esquerdo do aplicativo.
+
+    Para todos os casos, é esperado que a pasta `data/` contenha a seguinte estrutura:
     ```
     data/
     ├── csv/
