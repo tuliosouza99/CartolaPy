@@ -1,3 +1,4 @@
+import os
 import json
 import aiofiles
 import asyncio
@@ -31,6 +32,7 @@ async def create_dicts():
         .str.upper()
         .to_dict()
     )
+    os.makedirs('data/json', exist_ok=True)
 
     await asyncio.gather(
         *[

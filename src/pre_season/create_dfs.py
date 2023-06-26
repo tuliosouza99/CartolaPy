@@ -1,5 +1,6 @@
 import asyncio
 import argparse
+import os
 import sys
 
 import numpy as np
@@ -55,6 +56,9 @@ def create_pontos_cedidos_posicao(clubes_df: pd.DataFrame, posicao: int):
 
 
 async def main(create_mandos_and_confrontos: bool, create_pontos_cedidos: bool):
+    os.makedirs('data/csv/pontos_cedidos', exist_ok=True)
+    os.makedirs('data/parquet', exist_ok=True)
+
     await create_clubes_and_posicoes()
 
     if create_pontos_cedidos:
