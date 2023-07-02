@@ -1,15 +1,20 @@
 import asyncio
+import os
 import warnings
 
 import pandas as pd
+import numpy as np
 import streamlit as st
 
-import plot_dfs as P
+import plotter as P
 import src.utils as U
-from src.update_atletas import update_atletas
-from src.update_confrontos_or_mandos import update_confrontos_or_mandos
-from src.update_pontos_cedidos import update_pontos_cedidos
-from src.update_pontuacoes import update_pontuacoes
+import src.pre_season.dfs_creator as dfs_creator
+from src.enums import DataPath, UpdateTablesMsg
+from src.pre_season.dicts_creator import create_dicts
+from src.atletas_updater import update_atletas
+from src.confrontos_or_mandos_updater import ConfrontosOrMandosUpdater
+from src.pontos_cedidos_updater import PontosCedidosUpdater
+from src.pontuacoes_updater import update_pontuacoes_and_scouts
 
 warnings.filterwarnings('ignore')
 PRECO_MIN = 0
@@ -17,7 +22,116 @@ PRECO_MAX = 30
 RODADA_INICIAL = 1
 
 
+async def update_tables(rodada: list[int] | int):
+    await dfs_creator.create_clubes_and_posicoes()
+    await asyncio.gather(create_dicts(), update_atletas())
+
+    if isinstance(rodada, int):  # update all rounds until rodada
+        await asyncio.gather(
+            dfs_creator.create_pontos_cedidos_dfs(),
+            asyncio.to_thread(dfs_creator.create_confrontos_or_mandos, 'confrontos'),
+            asyncio.to_thread(dfs_creator.create_confrontos_or_mandos, 'mandos'),
+        )
+        mandos_updater = ConfrontosOrMandosUpdater('mandos')
+        confrontos_updater = ConfrontosOrMandosUpdater('confrontos')
+
+        if rodada == 1:
+            await asyncio.gather(
+                mandos_updater.update_table(rodada),
+                confrontos_updater.update_table(rodada),
+                update_pontuacoes_and_scouts(first_round=True),
+            )
+        else:
+            await asyncio.gather(
+                mandos_updater.update_table(range(1, rodada + 1)),
+                confrontos_updater.update_table(range(1, rodada + 1)),
+                update_pontuacoes_and_scouts(),
+            )
+            pontos_cedidos_updater = PontosCedidosUpdater()
+            await pontos_cedidos_updater.update_pontos_cedidos(range(1, rodada))
+            pontos_cedidos_updater.write_csvs()
+
+    else:  # update all rounds in rodada
+        mandos_updater = ConfrontosOrMandosUpdater('mandos')
+        confrontos_updater = ConfrontosOrMandosUpdater('confrontos')
+        pontos_cedidos_updater = PontosCedidosUpdater()
+
+        await asyncio.gather(
+            mandos_updater.update_table(rodada),
+            confrontos_updater.update_table(rodada),
+        )
+        await asyncio.gather(
+            update_pontuacoes_and_scouts(),
+            pontos_cedidos_updater.update_pontos_cedidos(rodada[:-1]),
+        )
+
+
 async def main():
+    st.set_page_config(layout='wide', page_icon=':tophat:')
+
+    st.sidebar.markdown(
+        "<h1 style='text-align: center;'>Cartola"
+        "<span style='color: #ff6600'>Py</span></hi>",
+        unsafe_allow_html=True,
+    )
+
+    mercado_json = await U.get_page_json(
+        'https://api.cartolafc.globo.com/mercado/status'
+    )
+
+    if mercado_json['status_mercado'] != 1 or mercado_json['game_over']:
+        st.sidebar.info(UpdateTablesMsg.MERCADO_FECHADO.value)
+
+        if not all([os.path.exists(table) for table in DataPath.as_list()]):
+            st.warning(UpdateTablesMsg.NOT_ALL_TABLES_FOUND.value)
+            st.stop()
+    else:
+        if mercado_json['rodada_atual'] == 1:
+            st.info(UpdateTablesMsg.SEASON_NOT_STARTED.value)
+            atualizar_tabelas = st.button('Atualizar Tabelas', key='atualizar_tabelas')
+
+            if atualizar_tabelas:
+                with st.empty():
+                    await update_tables(mercado_json['rodada_atual'])
+                    st.success(UpdateTablesMsg.SUCCESS.value)
+            st.stop()
+
+        else:
+            if not all([os.path.exists(table) for table in DataPath.as_list()]):
+                with st.empty():
+                    await update_tables(mercado_json['rodada_atual'])
+                    st.success(UpdateTablesMsg.SUCCESS.value)
+            else:
+                confrontos_df = (
+                    pd.read_csv('data/csv/confrontos.csv', index_col=0)
+                    .set_index('clube_id')
+                    .loc[
+                        :, [str(i) for i in range(1, mercado_json['rodada_atual'] + 1)]
+                    ]
+                )
+                rounds_to_update = np.where(
+                    [
+                        confrontos_df[str(col)].isna().all()
+                        for col in confrontos_df.columns
+                    ]
+                )[0]
+                rounds_to_update = [round_ + 1 for round_ in rounds_to_update]
+
+                if len(rounds_to_update) > 0:
+                    with st.empty():
+                        await update_tables(rounds_to_update)
+                        st.success(UpdateTablesMsg.SUCCESS.value)
+                else:
+                    atualizar_tabelas = st.sidebar.button(
+                        'Atualize as informações mais recentes do mercado',
+                        key='atualizar_tabelas',
+                    )
+                    if atualizar_tabelas:
+                        with st.sidebar.empty():
+                            await update_atletas()
+                            await update_pontuacoes_and_scouts()
+                            st.success(UpdateTablesMsg.SUCCESS.value)
+
     clubes_dict, posicoes_dict, status_dict = await asyncio.gather(
         U.load_dict_async('clubes'),
         U.load_dict_async('posicoes'),
@@ -29,35 +143,6 @@ async def main():
 
     atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
     rodada_atual = int(atletas_df.at[0, 'rodada_id'])
-
-    st.set_page_config(layout='wide', page_icon=':tophat:')
-
-    if rodada_atual == 1:
-        st.info('Espere o mercado abrir após a primeira rodada para usar o app!')
-        st.stop()
-
-    # Menu Lateral
-    st.sidebar.markdown(
-        "<h1 style='text-align: center;'>Cartola"
-        "<span style='color: #ff6600'>Py</span></hi>",
-        unsafe_allow_html=True,
-    )
-
-    atualizar_tabelas = st.sidebar.button('Atualizar Tabelas', key='atualizar_tabelas')
-    if atualizar_tabelas:
-        with st.sidebar.empty():
-            pbar = st.progress(0, text='Atualizando Tabelas...')
-
-            await asyncio.gather(
-                update_atletas(pbar=pbar),
-                update_confrontos_or_mandos('confrontos', pbar=pbar),
-                update_confrontos_or_mandos('mandos', pbar=pbar),
-            )
-            await asyncio.gather(
-                update_pontuacoes(pbar=pbar), update_pontos_cedidos(pbar=pbar)
-            )
-            st.success('Tabelas Atualizadas!')
-            st.experimental_rerun()
 
     media_opcao = st.sidebar.radio(
         'Selecione um Tipo de Média',
@@ -75,7 +160,7 @@ async def main():
             RODADA_INICIAL,
             rodada_atual,
             (RODADA_INICIAL, rodada_atual),
-            key='rodadasAtletas',
+            key='rodadas_atletas',
         )
 
     container_atletas = st.container()

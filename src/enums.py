@@ -25,4 +25,45 @@ class Scout(Enum):
 
     @classmethod
     def as_basic_scouts_list(cls):
-        return [scout.name for scout in cls if scout.name not in ('G', 'A', 'FT', 'PP', 'DP', 'SG', 'CV', 'GC')]
+        return [
+            scout.name
+            for scout in cls
+            if scout.name not in ('G', 'A', 'FT', 'PP', 'DP', 'SG', 'CV', 'GC')
+        ]
+
+
+class DataPath(Enum):
+    ATLETAS = 'data/csv/atletas.csv'
+    CLUBES = 'data/csv/clubes.csv'
+    CONFRONTOS = 'data/csv/confrontos.csv'
+    MANDOS = 'data/csv/mandos.csv'
+    PONTUACOES = 'data/csv/pontuacoes.csv'
+    POSICOES = 'data/csv/posicoes.csv'
+    PONTOS_CEDIDOS_GOL = 'data/csv/pontos_cedidos/1.csv'
+    PONTOS_CEDIDOS_LAT = 'data/csv/pontos_cedidos/2.csv'
+    PONTOS_CEDIDOS_ZAG = 'data/csv/pontos_cedidos/3.csv'
+    PONTOS_CEDIDOS_MEI = 'data/csv/pontos_cedidos/4.csv'
+    PONTOS_CEDIDOS_ATA = 'data/csv/pontos_cedidos/5.csv'
+    PONTOS_CEDIDOS_TEC = 'data/csv/pontos_cedidos/6.csv'
+    CLUBES_DICT = 'data/json/clubes.json'
+    POSICOES_DICT = 'data/json/posicoes.json'
+    STATUS_DICT = 'data/json/status.json'
+    SCOUTS = 'data/parquet/scouts.parquet'
+
+    @classmethod
+    def as_list(cls):
+        return [path.value for path in cls]
+
+
+class UpdateTablesMsg(Enum):
+    MERCADO_FECHADO = (
+        'O mercado está fechado! Espere sua reabertura para atualizar as tabelas.'
+    )
+    NOT_ALL_TABLES_FOUND = (
+        'Não encontramos todas as tabelas necessárias para a execução do aplicativo.'
+    )
+    SEASON_NOT_STARTED = (
+        'A temporada ainda não começou! Espere os resultados da primeira rodada para usar o app.\n'
+        'Enquanto isso, você pode atualizar as tabelas para a nova temporada, caso ainda não tenha feito.'
+    )
+    SUCCESS = 'Tabelas atualizadas com sucesso!'

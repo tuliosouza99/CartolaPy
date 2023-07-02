@@ -1,6 +1,6 @@
 # CartolaPy
 
-Aplicativo Streamlit para visualização e análise de dados do Cartola FC
+Aplicativo Streamlit para visualização e análise de dados extraídos da API oficial do Cartola FC.
 
 ## Instalação e Execução
 
@@ -12,41 +12,7 @@ conda activate cartolapy
 pip install -r requirements.txt
 ```
 
-3. Prepare os dados
-    - Caso o Brasileirão ainda não tenha iniciado e o mercado já esteja aberto para a temporada, execute o comando `bash scripts/pre_season_script.sh`.
-
-    - Caso você tenha ingressado no projeto após o início do Brasileirão, ou caso você tenha esquecido de atualizar os dados de alguma rodada diferente da última rodada válida, execute o comando `bash scripts/mid_season_script.sh`. **Obs: Caso você não deseje recriar as tabelas de pontos cedidos ou de mandos e confrontos do zero, edite o script conforme as instruções contidas nele.**
-
-    - Caso falte apenas coletar os dados da última rodada válida, ou você deseja apenas coletar os dados mais recentes do mercado, siga para a etapa 4 e clique no botão "Atualizar Tabelas" no canto superior esquerdo do aplicativo.
-
-    Para todos os casos, é esperado que a pasta `data/` contenha a seguinte estrutura:
-    ```
-    data/
-    ├── csv/
-    │   ├── pontos_cedidos/
-    │   │   ├── 1.csv
-    │   │   ├── 2.csv
-    │   │   ├── 3.csv
-    │   │   ├── 4.csv
-    │   │   └── 5.csv
-    │   ├── atletas.csv
-    │   ├── clubes.csv
-    │   ├── confrontos.csv
-    │   ├── mandos.csv
-    |   ├── pontuacoes.csv
-    │   └── posicoes.csv
-    ├── json/
-    │   ├── clubes.json
-    |   ├── posicoes.json
-    │   └── status.json
-    |── parquet/
-    |   └── scouts.parquet
-    ```
-
-4. Execute o aplicativo
-```bash
-streamlit run CartolaPy.py
-```
+3. Execute o comando `streamlit run CartolaPy.py` e clique no botão **Atualizar Tabelas** para utilizar o aplicativo.
 
 ## Funcionalidades
 
