@@ -1,12 +1,9 @@
-import sys
+import os
 import asyncio
-import argparse
 
 import numpy as np
 import pandas as pd
-
-if './' not in sys.path:
-    sys.path.append('./')
+from stqdm import stqdm
 
 from src.utils import get_page_json
 
@@ -21,7 +18,9 @@ def create_df(atletas: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index()
 
 
-async def update_pontuacoes_rodada(rodada: int, pontuacoes_df: pd.DataFrame, scouts_df: pd.DataFrame):
+async def update_pontuacoes_and_scouts_rodada(
+    rodada: int, pontuacoes_df: pd.DataFrame, scouts_df: pd.DataFrame
+):
     json = await get_page_json(
         f'https://api.cartolafc.globo.com/atletas/pontuados/{rodada}'
     )
@@ -45,28 +44,24 @@ async def update_pontuacoes_rodada(rodada: int, pontuacoes_df: pd.DataFrame, sco
     ] = rodada_df['scout'].to_list()
 
 
-async def update_pontuacoes(pbar=None, first_round=False):
+async def update_pontuacoes_and_scouts(first_round=False):
     atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
     rodada_atual = int(atletas_df.at[0, 'rodada_id'])
     pontuacoes_df = create_df(atletas_df)
     scouts_df = create_df(atletas_df)
 
     if not first_round:
-        await asyncio.gather(*[update_pontuacoes_rodada(rodada, pontuacoes_df, scouts_df) for rodada in range(1, rodada_atual + 1)])
+        await asyncio.gather(
+            *[
+                update_pontuacoes_and_scouts_rodada(rodada, pontuacoes_df, scouts_df)
+                for rodada in stqdm(
+                    range(1, rodada_atual + 1),
+                    desc='Atualizando as pontuações dos atletas...',
+                    backend=True,
+                )
+            ]
+        )
 
     pontuacoes_df.to_csv('data/csv/pontuacoes.csv')
+    os.makedirs('data/parquet', exist_ok=True)
     scouts_df.to_parquet('data/parquet/scouts.parquet')
-
-    if pbar is not None:
-        pbar.progress(20)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--first_round', action='store_true')
-    args = parser.parse_args()
-
-    if args.first_round:
-        asyncio.run(update_pontuacoes(first_round=True))
-    else:
-        asyncio.run(update_pontuacoes())

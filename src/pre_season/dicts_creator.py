@@ -1,13 +1,9 @@
-import os
-import json
-import aiofiles
 import asyncio
-import sys
+import json
+import os
 
+import aiofiles
 import pandas as pd
-
-if './' not in sys.path:
-    sys.path.append('./')
 
 from src.utils import get_page_json
 
@@ -43,7 +39,3 @@ async def create_dicts():
             )
         ]
     )
-
-
-if __name__ == '__main__':
-    asyncio.run(create_dicts())
