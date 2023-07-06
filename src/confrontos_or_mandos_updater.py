@@ -26,9 +26,9 @@ class ConfrontosOrMandosUpdater:
 
             if partidas_rodada.at[idx, 'valida']:
                 if self.table_name == 'mandos':
-                    self.df.loc[clube, rodada_atual] = 1
+                    self.df.loc[clube, str(rodada_atual)] = 1
                 else:
-                    self.df.loc[clube, rodada_atual] = partidas_rodada.at[
+                    self.df.loc[clube, str(rodada_atual)] = partidas_rodada.at[
                         idx, 'clube_visitante_id'
                     ]
         else:
@@ -36,9 +36,9 @@ class ConfrontosOrMandosUpdater:
 
             if partidas_rodada.at[idx, 'valida']:
                 if self.table_name == 'mandos':
-                    self.df.loc[clube, rodada_atual] = 0
+                    self.df.loc[clube, str(rodada_atual)] = 0
                 else:
-                    self.df.loc[clube, rodada_atual] = partidas_rodada.at[
+                    self.df.loc[clube, str(rodada_atual)] = partidas_rodada.at[
                         idx, 'clube_casa_id'
                     ]
 
@@ -71,5 +71,4 @@ class ConfrontosOrMandosUpdater:
             ]
         )
 
-    def write_csv(self):
         self.df.reset_index().to_csv(f'data/csv/{self.table_name}.csv')

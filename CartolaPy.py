@@ -49,7 +49,6 @@ async def update_tables(rodada: list[int] | int):
             )
             pontos_cedidos_updater = PontosCedidosUpdater()
             await pontos_cedidos_updater.update_pontos_cedidos(range(1, rodada))
-            pontos_cedidos_updater.write_csvs()
 
     else:  # update all rounds in rodada
         mandos_updater = ConfrontosOrMandosUpdater('mandos')
@@ -62,7 +61,7 @@ async def update_tables(rodada: list[int] | int):
         )
         await asyncio.gather(
             update_pontuacoes_and_scouts(),
-            pontos_cedidos_updater.update_pontos_cedidos(rodada[:-1]),
+            pontos_cedidos_updater.update_pontos_cedidos([rodada_ - 1 for rodada_ in rodada]),
         )
 
 

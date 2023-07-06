@@ -92,6 +92,5 @@ class PontosCedidosUpdater:
             ]
         )
 
-    def write_csvs(self):
         for posicao, df in self.pos_to_pontos_cedidos.items():
             df.to_csv(f'data/csv/pontos_cedidos/{posicao}.csv')
