@@ -24,7 +24,9 @@ def create_confrontos_or_mandos(table_name: str):
         np.empty((20, 38)) * np.nan,
         index=clubes_df['id'].astype(int),
         columns=list(map(str, range(1, 39))),
-    ).reset_index().rename({'id': 'clube_id'}).to_csv(f'data/csv/{table_name}.csv')
+    ).reset_index().rename(columns={'id': 'clube_id'}).to_csv(
+        f'data/csv/{table_name}.csv'
+    )
 
 
 async def create_pontos_cedidos_dfs():
