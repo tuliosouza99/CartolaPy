@@ -83,7 +83,7 @@ class PontosCedidosUpdater:
         await asyncio.gather(
             *[
                 self._update_pontos_cedidos_one_round(rodada)
-                async for rodada in stqdm(
+                for rodada in stqdm(
                     rodadas,
                     desc=f'Atualizando pontos cedidos para as rodadas {rodadas}',
                     total=len(list(rodadas)),

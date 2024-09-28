@@ -5,14 +5,18 @@ import aiohttp
 import aiofiles
 import numpy as np
 import pandas as pd
+from aiolimiter import AsyncLimiter
 
 from src.enums import Scout
 
+rate_limiter = AsyncLimiter(10, 1)
+
 
 async def get_page_json(url: str) -> dict:
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            page_json = await response.json()
+    async with rate_limiter:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                page_json = await response.json()
 
     return page_json
 
