@@ -75,7 +75,7 @@ async def main():
     )
 
     mercado_json = await U.get_page_json(
-        'https://api.cartolafc.globo.com/mercado/status'
+        'https://api.cartola.globo.com/mercado/status'
     )
 
     if mercado_json['status_mercado'] != 1 or mercado_json['game_over']:

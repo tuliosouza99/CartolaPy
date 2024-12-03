@@ -22,7 +22,7 @@ async def update_pontuacoes_and_scouts_rodada(
     rodada: int, pontuacoes_df: pd.DataFrame, scouts_df: pd.DataFrame
 ):
     json = await get_page_json(
-        f'https://api.cartolafc.globo.com/atletas/pontuados/{rodada}'
+        f'https://api.cartola.globo.com/atletas/pontuados/{rodada}'
     )
 
     rodada_df = (

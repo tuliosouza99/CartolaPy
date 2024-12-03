@@ -14,7 +14,7 @@ async def save_dict(dict_obj: dict, name: str):
 
 
 async def create_dicts():
-    json_page = await get_page_json('https://api.cartolafc.globo.com/atletas/mercado')
+    json_page = await get_page_json('https://api.cartola.globo.com/atletas/mercado')
 
     clubes_dict = (
         pd.DataFrame(json_page['clubes']).T.set_index('id')['abreviacao'].to_dict()

@@ -44,7 +44,7 @@ class ConfrontosOrMandosUpdater:
 
     async def _update_table_one_round(self, rodada: int):
         json = await get_page_json(
-            f'https://api.cartolafc.globo.com/partidas/{rodada}'
+            f'https://api.cartola.globo.com/partidas/{rodada}'
         )
         partidas_rodada = pd.DataFrame(json['partidas'])
 

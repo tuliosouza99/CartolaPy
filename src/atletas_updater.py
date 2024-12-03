@@ -4,7 +4,7 @@ from src.utils import get_page_json
 
 
 async def update_atletas():
-    json = await get_page_json('https://api.cartolafc.globo.com/atletas/mercado')
+    json = await get_page_json('https://api.cartola.globo.com/atletas/mercado')
 
     pd.DataFrame(json['atletas']).drop(
         columns=[

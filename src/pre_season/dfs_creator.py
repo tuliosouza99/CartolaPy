@@ -9,7 +9,7 @@ from src.utils import get_page_json
 
 async def create_clubes_and_posicoes():
     os.makedirs('data/csv', exist_ok=True)
-    json = await get_page_json('https://api.cartolafc.globo.com/atletas/mercado')
+    json = await get_page_json('https://api.cartola.globo.com/atletas/mercado')
 
     pd.DataFrame(json['clubes']).T.reset_index(drop=True).to_csv('data/csv/clubes.csv')
     pd.DataFrame(json['posicoes']).T.reset_index(drop=True).to_csv(

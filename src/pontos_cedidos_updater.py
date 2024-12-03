@@ -65,7 +65,7 @@ class PontosCedidosUpdater:
 
     async def _update_pontos_cedidos_one_round(self, rodada: int):
         json = await get_page_json(
-            f'https://api.cartolafc.globo.com/atletas/pontuados/{rodada}'
+            f'https://api.cartola.globo.com/atletas/pontuados/{rodada}'
         )
         rodada_df = pd.DataFrame(json['atletas']).T
 
