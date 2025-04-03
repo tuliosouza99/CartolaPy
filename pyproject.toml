@@ -13,5 +13,7 @@ dependencies = [
     "streamlit==1.21.0",
     "stqdm==0.0.5",
     "aiolimiter==1.1.0",
-    "ipykernel"
+    "ipykernel",
+    "matplotlib>=3.10.1",
+    "watchdog>=6.0.0",
 ]
