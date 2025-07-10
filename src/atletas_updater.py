@@ -15,8 +15,6 @@ async def update_atletas():
             'jogos_num',
             'slug',
             'apelido_abreviado',
-            'gato_mestre',
-            'minimo_para_valorizar',
             'nome',
             'foto',
         ]
