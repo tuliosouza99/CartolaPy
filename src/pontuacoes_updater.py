@@ -10,13 +10,13 @@ from src.utils import get_page_json
 
 
 def create_df(atletas: pd.DataFrame) -> pd.DataFrame:
+    rodadas = list(range(1, 39))
     df = pd.DataFrame(
-        np.empty((atletas.shape[0], 38)) * np.nan,
-        index=atletas.loc[:, "atleta_id"],
-        columns=list(map(str, range(1, 39))),
+        [(atleta, rodada) for atleta in atletas["atleta_id"] for rodada in rodadas],
+        columns=["atleta_id", "rodada"],
     )
-
-    return df.reset_index()
+    df["pontuacao"] = np.nan
+    return df
 
 
 async def update_pontuacoes_and_scouts_rodada(
@@ -31,18 +31,26 @@ async def update_pontuacoes_and_scouts_rodada(
         .T.reset_index()
         .astype({"index": "int64"})
         .sort_values(by=["index"])
-        .loc[lambda _df: _df["index"].isin(pontuacoes_df["atleta_id"].to_list())]
+        .loc[lambda _df: _df["index"].isin(pontuacoes_df["atleta_id"].unique())]
     )
 
-    pontuacoes_df.loc[
-        pontuacoes_df["atleta_id"].isin(rodada_df["index"].to_list()),
-        str(rodada),
-    ] = rodada_df["pontuacao"].to_list()
+    mask = pontuacoes_df["atleta_id"].isin(rodada_df["index"].to_list()) & (
+        pontuacoes_df["rodada"] == rodada
+    )
+    pontuacoes_df.loc[mask, "pontuacao"] = (
+        pontuacoes_df.loc[mask, "atleta_id"]
+        .map(dict(zip(rodada_df["index"], rodada_df["pontuacao"])))
+        .values
+    )
 
-    scouts_df.loc[
-        scouts_df["atleta_id"].isin(rodada_df["index"].to_list()),
-        str(rodada),
-    ] = rodada_df["scout"].to_list()
+    mask_scouts = scouts_df["atleta_id"].isin(rodada_df["index"].to_list()) & (
+        scouts_df["rodada"] == rodada
+    )
+    scouts_df.loc[mask_scouts, "scout"] = (
+        scouts_df.loc[mask_scouts, "atleta_id"]
+        .map(dict(zip(rodada_df["index"], rodada_df["scout"])))
+        .values
+    )
 
 
 async def update_pontuacoes_and_scouts(
@@ -71,6 +79,6 @@ async def update_pontuacoes_and_scouts(
             ]
         )
 
-    pontuacoes_df.to_csv("data/csv/pontuacoes.csv")
+    pontuacoes_df.to_csv("data/csv/pontuacoes.csv", index=False)
     os.makedirs("data/parquet", exist_ok=True)
-    scouts_df.to_parquet("data/parquet/scouts.parquet")
+    scouts_df.to_parquet("data/parquet/scouts.parquet", index=False)

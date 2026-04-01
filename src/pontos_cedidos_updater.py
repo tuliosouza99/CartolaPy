@@ -10,21 +10,8 @@ from src.utils import get_page_json
 
 class PontosCedidosUpdater:
     def __init__(self):
-        posicoes_df = pd.read_csv("data/csv/posicoes.csv", index_col=0)
-
-        self.pos_to_pontos_cedidos = self._read_pontos_cedidos(
-            posicoes_df["id"].tolist()
-        )
-        self.confrontos_df = pd.read_csv(
-            "data/csv/confrontos.csv", index_col=0
-        ).set_index("clube_id")
-
-    def _read_pontos_cedidos(self, posicoes: list) -> dict[int, pd.DataFrame]:
-        dfs = [
-            pd.read_csv(f"data/csv/pontos_cedidos/{posicao}.csv", index_col=0)
-            for posicao in posicoes
-        ]
-        return dict(zip(posicoes, dfs))
+        self.pontos_cedidos_df = pd.read_csv("data/csv/pontos_cedidos.csv")
+        self.confrontos_df = pd.read_csv("data/csv/confrontos.csv")
 
     def _update_pontos_cedidos_posicao_clube(
         self,
@@ -33,22 +20,34 @@ class PontosCedidosUpdater:
         rodada_atual: int,
         rodada_posicao_df: pd.DataFrame,
     ):
-        adversario = self.confrontos_df.at[clube, str(rodada_atual)]
+        adversario_row = self.confrontos_df[
+            (self.confrontos_df["clube_id"] == clube)
+            & (self.confrontos_df["rodada"] == rodada_atual)
+        ]
 
-        if not np.isnan(adversario):
+        if len(adversario_row) > 0 and not np.isnan(
+            adversario_row.iloc[0]["adversario_id"]
+        ):
+            adversario = int(adversario_row.iloc[0]["adversario_id"])
             rodada_posicao_clube_df = rodada_posicao_df.loc[
                 rodada_posicao_df["clube_id"] == adversario
             ]
-            self.pos_to_pontos_cedidos[posicao].loc[
-                self.pos_to_pontos_cedidos[posicao]["clube_id"] == clube,
-                str(rodada_atual),
-            ] = np.mean(rodada_posicao_clube_df["pontuacao"])
+            mask = (
+                (self.pontos_cedidos_df["clube_id"] == clube)
+                & (self.pontos_cedidos_df["posicao_id"] == posicao)
+                & (self.pontos_cedidos_df["rodada"] == rodada_atual)
+            )
+            self.pontos_cedidos_df.loc[mask, "pontos_cedidos"] = np.mean(
+                rodada_posicao_clube_df["pontuacao"]
+            )
 
     async def _update_pontos_cedidos_posicao(
         self, posicao: int, rodada_atual: int, rodada_df: pd.DataFrame
     ):
-        # Seleciona todos os atletas de uma posição que atuaram na rodada
         rodada_posicao_df = rodada_df.loc[rodada_df["posicao_id"] == posicao]
+        clubes = self.pontos_cedidos_df[
+            self.pontos_cedidos_df["posicao_id"] == posicao
+        ]["clube_id"].unique()
 
         await asyncio.gather(
             *[
@@ -59,7 +58,7 @@ class PontosCedidosUpdater:
                     rodada_atual,
                     rodada_posicao_df,
                 )
-                for clube in self.pos_to_pontos_cedidos[posicao]["clube_id"]
+                for clube in clubes
             ]
         )
 
@@ -69,10 +68,12 @@ class PontosCedidosUpdater:
         )
         rodada_df = pd.DataFrame(json["atletas"]).T
 
+        posicoes = self.pontos_cedidos_df["posicao_id"].unique()
+
         await asyncio.gather(
             *[
                 self._update_pontos_cedidos_posicao(posicao, rodada, rodada_df)
-                for posicao in self.pos_to_pontos_cedidos.keys()
+                for posicao in posicoes
             ]
         )
 
@@ -92,5 +93,4 @@ class PontosCedidosUpdater:
             ]
         )
 
-        for posicao, df in self.pos_to_pontos_cedidos.items():
-            df.to_csv(f"data/csv/pontos_cedidos/{posicao}.csv")
+        self.pontos_cedidos_df.to_csv("data/csv/pontos_cedidos.csv", index=False)
