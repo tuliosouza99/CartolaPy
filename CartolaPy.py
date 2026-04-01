@@ -28,7 +28,7 @@ async def update_tables(rodada: list[int] | int):
 
     if isinstance(rodada, int):  # update all rounds until rodada
         await asyncio.gather(
-            dfs_creator.create_pontos_cedidos_dfs(),
+            asyncio.to_thread(dfs_creator.create_pontos_cedidos_dfs),
             asyncio.to_thread(dfs_creator.create_confrontos_or_mandos, "confrontos"),
             asyncio.to_thread(dfs_creator.create_confrontos_or_mandos, "mandos"),
         )
@@ -101,17 +101,18 @@ async def main():
                     await update_tables(mercado_json["rodada_atual"])
                     st.success(UpdateTablesMsg.SUCCESS.value)
             else:
-                confrontos_df = (
-                    pd.read_csv("data/csv/confrontos.csv", index_col=0)
-                    .set_index("clube_id")
-                    .loc[
-                        :, [str(i) for i in range(1, mercado_json["rodada_atual"] + 1)]
-                    ]
-                )
+                confrontos_df = pd.read_csv("data/csv/confrontos.csv")
+                confrontos_df = confrontos_df.loc[
+                    confrontos_df["rodada"] <= mercado_json["rodada_atual"]
+                ]
                 rounds_to_update = np.where(
                     [
-                        confrontos_df[str(col)].isna().all()
-                        for col in confrontos_df.columns
+                        not confrontos_df.loc[
+                            confrontos_df["rodada"] == col, "adversario"
+                        ]
+                        .notna()
+                        .any()
+                        for col in range(1, mercado_json["rodada_atual"] + 1)
                     ]
                 )[0]
                 rounds_to_update = [round_ + 1 for round_ in rounds_to_update]
@@ -282,16 +283,18 @@ async def main():
         )
 
     abreviacao2posicao = {
-        "GOL": "1",
-        "LAT": "2",
-        "ZAG": "3",
-        "MEI": "4",
-        "ATA": "5",
-        "TEC": "6",
+        "GOL": 1,
+        "LAT": 2,
+        "ZAG": 3,
+        "MEI": 4,
+        "ATA": 5,
+        "TEC": 6,
     }
-    pontos_cedidos_posicao = pd.read_csv(
-        f"data/csv/pontos_cedidos/{abreviacao2posicao[posicao_escolhida]}.csv"
-    ).set_index("clube_id")
+    posicao_id = abreviacao2posicao[posicao_escolhida]
+    pontos_cedidos_df = pd.read_csv("data/csv/pontos_cedidos.csv")
+    pontos_cedidos_posicao = pontos_cedidos_df.loc[
+        pontos_cedidos_df["posicao"] == posicao_id
+    ]
 
     if media_opcao == "Geral":
         with container_pontos_cedidos:

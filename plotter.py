@@ -12,7 +12,6 @@ def plot_df(df: pd.DataFrame, col: list, format: dict, drop_index: bool = False)
     return (
         df.sort_values(by=col[0], ascending=False)
         .reset_index(drop=drop_index)
-        .rename(columns={"atleta_id": "ID"})
         .style.background_gradient(cmap="YlGn", subset=col)
         .format(format)
     )
@@ -28,40 +27,31 @@ def plot_atletas_geral(
     precos: tuple[int, int],
     rodadas: tuple[int, int],
 ):
-    pontuacoes_df = (
-        pd.read_csv("data/csv/pontuacoes.csv", index_col=0)
-        .set_index("atleta_id")
-        .loc[:, str(rodadas[0]) : str(rodadas[1])]
-    )
-    scouts_df = (
-        pd.read_parquet("data/parquet/scouts.parquet")
-        .set_index("atleta_id")
-        .loc[:, str(rodadas[0]) : str(rodadas[1])]
-        .assign(
-            **{
-                str(rodada): lambda df_, rodada_=rodada: list(
-                    map(U.get_basic_points, df_[str(rodada_)])
-                )
-                for rodada in range(rodadas[0], rodadas[1] + 1)
-            }
-        )
+    pontuacoes_df = pd.read_csv("data/csv/pontuacoes.csv")
+    pontuacoes_df = pontuacoes_df.loc[
+        (pontuacoes_df["rodada"] >= rodadas[0])
+        & (pontuacoes_df["rodada"] <= rodadas[1])
+    ]
+
+    scouts_df = pd.read_parquet("data/parquet/scouts.parquet")
+    scouts_df = scouts_df.loc[
+        (scouts_df["rodada"] >= rodadas[0]) & (scouts_df["rodada"] <= rodadas[1])
+    ]
+    scouts_df["pontuacao_basica"] = scouts_df["scout"].apply(U.get_basic_points)
+
+    pontuacoes_stats = (
+        pontuacoes_df.groupby("atleta_id")["pontuacao"]
+        .agg(["mean", "std", "count"])
+        .rename(columns={"mean": "Média", "std": "Desvio Padrão", "count": "Jogos"})
     )
 
-    atletas_df = (
-        atletas_df.assign(
-            **{
-                "Média": np.nanmean(np.array(pontuacoes_df), axis=1, keepdims=True),
-                "Média Básica": np.nanmean(np.array(scouts_df), axis=1, keepdims=True),
-                "Desvio Padrão": np.nanstd(
-                    np.array(pontuacoes_df), axis=1, keepdims=True
-                ),
-                "Jogos": np.count_nonzero(
-                    ~np.isnan(pontuacoes_df), axis=1, keepdims=True
-                ),
-            }
-        )
-        .dropna(subset=["Média"])
-        .pipe(U.atletas_clean_and_filter, clubes, posicoes, status, min_jogos, precos)
+    scouts_stats = (
+        scouts_df.groupby("atleta_id")["pontuacao_basica"].mean().rename("Média Básica")
+    )
+
+    atletas_df = atletas_df.join(pontuacoes_stats).join(scouts_stats)
+    atletas_df = atletas_df.dropna(subset=["Média"]).pipe(
+        U.atletas_clean_and_filter, clubes, posicoes, status, min_jogos, precos
     )
 
     return (
@@ -90,31 +80,18 @@ def plot_atletas_mando(
     rodadas: tuple[int, int],
     mando_flag: int,
 ):
-    pontuacoes_df = (
-        pd.read_csv("data/csv/pontuacoes.csv", index_col=0)
-        .set_index("atleta_id")
-        .loc[:, str(rodadas[0]) : str(rodadas[1])]
-        .rename(lambda col: f"round_{col}", axis="columns")
-    )
-    scouts_df = (
-        pd.read_parquet("data/parquet/scouts.parquet")
-        .set_index("atleta_id")
-        .loc[:, str(rodadas[0]) : str(rodadas[1])]
-        .assign(
-            **{
-                str(rodada): lambda df_, rodada_=rodada: list(
-                    map(U.get_basic_points, df_[str(rodada_)])
-                )
-                for rodada in range(rodadas[0], rodadas[1] + 1)
-            }
-        )
-        .rename(lambda col: f"round_{col}", axis="columns")
-    )
-    mandos_df = (
-        pd.read_csv("data/csv/mandos.csv", index_col=0)
-        .set_index("clube_id")
-        .loc[:, str(rodadas[0]) : str(rodadas[1])]
-    )
+    pontuacoes_df = pd.read_csv("data/csv/pontuacoes.csv")
+    pontuacoes_df = pontuacoes_df.loc[
+        (pontuacoes_df["rodada"] >= rodadas[0])
+        & (pontuacoes_df["rodada"] <= rodadas[1])
+    ]
+
+    scouts_df = pd.read_parquet("data/parquet/scouts.parquet")
+    scouts_df = scouts_df.loc[
+        (scouts_df["rodada"] >= rodadas[0]) & (scouts_df["rodada"] <= rodadas[1])
+    ]
+
+    mandos_df = pd.read_csv("data/csv/mandos.csv")
     rodadas_mando_dict = U.create_mando_dict(mandos_df, mando_flag)
 
     atletas_df = atletas_df.assign(
@@ -126,12 +103,15 @@ def plot_atletas_mando(
         }
     )
 
-    for row_pontuacoes, row_scouts in zip(
-        pontuacoes_df.itertuples(), scouts_df.itertuples()
-    ):
-        clube_id = atletas_df.at[row_pontuacoes[0], "clube_id"]
+    for atleta_id in atletas_df.index:
+        clube_id = atletas_df.at[atleta_id, "clube_id"]
         atletas_df = U.get_pontuacoes_mando(
-            atletas_df, rodadas_mando_dict, clube_id, row_pontuacoes, row_scouts
+            atletas_df,
+            rodadas_mando_dict,
+            clube_id,
+            atleta_id,
+            pontuacoes_df,
+            scouts_df,
         )
 
     atletas_df = atletas_df.dropna(subset=["Média"]).pipe(
@@ -160,72 +140,76 @@ def plot_atletas_mando(
 
 
 @st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
-def plot_pontos_cedidos_geral(pontos_cedidos_posicao: pd.DataFrame, rodadas: tuple):
-    pontos_cedidos_posicao = pontos_cedidos_posicao.loc[
-        :, str(rodadas[0]) : str(rodadas[1])
+def plot_pontos_cedidos_geral(
+    pontos_cedidos_df: pd.DataFrame, rodadas: tuple[int, int]
+):
+    pontos_cedidos_df = pontos_cedidos_df.loc[
+        (pontos_cedidos_df["rodada"] >= rodadas[0])
+        & (pontos_cedidos_df["rodada"] <= rodadas[1])
     ]
 
-    return (
-        pd.DataFrame(U.load_dict("clubes").values(), columns=["Clube"])
-        .assign(
-            **{
-                "Média": np.nanmean(
-                    np.array(pontos_cedidos_posicao), axis=1, keepdims=True
-                ),
-                "Desvio Padrão": np.nanstd(
-                    np.array(pontos_cedidos_posicao), axis=1, keepdims=True
-                ),
-                "Jogos": np.count_nonzero(
-                    ~np.isnan(pontos_cedidos_posicao), axis=1, keepdims=True
-                ),
-            }
-        )
+    clubes_dict = U.load_dict("clubes")
+
+    stats = (
+        pontos_cedidos_df.groupby("clube_id")["pontos_cedidos"]
+        .agg(["mean", "std", "count"])
+        .rename(columns={"mean": "Média", "std": "Desvio Padrão", "count": "Jogos"})
+    )
+
+    df = (
+        pd.DataFrame({"Clube": list(clubes_dict.values())})
+        .assign(clube_id=list(clubes_dict.keys()))
+        .merge(stats, left_on="clube_id", right_index=True)
         .dropna(subset=["Média"])
-        .pipe(
-            plot_df,
-            ["Média"],
-            {"Média": "{:.2f}", "Desvio Padrão": "{:.2f}"},
-            drop_index=True,
-        )
+        .drop(columns=["clube_id"])
+    )
+
+    return df.pipe(
+        plot_df,
+        ["Média"],
+        {"Média": "{:.2f}", "Desvio Padrão": "{:.2f}"},
+        drop_index=True,
     )
 
 
 @st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
 def plot_pontos_cedidos_mando(
-    pontos_cedidos_posicao: pd.DataFrame,
-    rodadas: tuple,
+    pontos_cedidos_df: pd.DataFrame,
+    rodadas: tuple[int, int],
     mando_flag: int,
 ):
-    pontos_cedidos_posicao = pontos_cedidos_posicao.loc[
-        :, str(rodadas[0]) : str(rodadas[1])
-    ].rename(lambda col: f"round_{col}", axis="columns")
+    pontos_cedidos_df = pontos_cedidos_df.loc[
+        (pontos_cedidos_df["rodada"] >= rodadas[0])
+        & (pontos_cedidos_df["rodada"] <= rodadas[1])
+    ]
 
     clubes_dict = U.load_dict("clubes")
 
-    mandos_df = (
-        pd.read_csv("data/csv/mandos.csv", index_col=0)
-        .set_index("clube_id")
-        .loc[:, str(rodadas[0]) : str(rodadas[1])]
-    )
-    rodadas_mando_dict = U.create_mando_dict(mandos_df, mando_flag)
+    mandatos_df = pd.read_csv("data/csv/mandos.csv")
+    rodadas_mando_dict = U.create_mando_dict(mandatos_df, mando_flag)
 
     pontos_cedidos_plot = (
-        pd.DataFrame(clubes_dict.keys(), columns=["Clube"])
-        .set_index("Clube")
+        pd.DataFrame({"Clube": list(clubes_dict.values())})
+        .assign(clube_id=list(clubes_dict.keys()))
         .assign(**{"Média": np.nan, "Desvio Padrão": np.nan, "Jogos": np.nan})
+        .set_index("clube_id")
     )
 
-    for row, clube_id in zip(
-        pontos_cedidos_posicao.itertuples(), rodadas_mando_dict.keys()
-    ):
-        pontos_cedidos_plot = U.get_pontuacoes_mando(
-            pontos_cedidos_plot, rodadas_mando_dict, clube_id, row
+    for clube_id in rodadas_mando_dict.keys():
+        rodadas_list = rodadas_mando_dict[clube_id]
+        mask = (pontos_cedidos_df["clube_id"] == clube_id) & (
+            pontos_cedidos_df["rodada"].isin(rodadas_list)
         )
+        valores = pontos_cedidos_df.loc[mask, "pontos_cedidos"].dropna()
+        if len(valores) > 0:
+            pontos_cedidos_plot.at[clube_id, "Média"] = np.mean(valores)
+            pontos_cedidos_plot.at[clube_id, "Desvio Padrão"] = np.std(valores)
+            pontos_cedidos_plot.at[clube_id, "Jogos"] = len(valores)
 
     return (
         pontos_cedidos_plot.dropna(subset=["Média"])
         .reset_index()
-        .assign(Clube=lambda _df: _df["Clube"].map(clubes_dict))
+        .drop(columns=["clube_id"])
         .pipe(
             plot_df,
             ["Média"],
@@ -244,34 +228,29 @@ def plot_player_scouts(
     mando_flag: int | None = None,
 ):
     if mando_flag is not None:
-        mandos_df = (
-            pd.read_csv("data/csv/mandos.csv", index_col=0)
-            .set_index("clube_id")
-            .loc[:, str(rodadas[0]) : str(rodadas[1])]
-        )
-        rodadas_mando_dict = U.create_mando_dict(mandos_df, mando_flag)
+        mandatos_df = pd.read_csv("data/csv/mandos.csv")
+        rodadas_mando_dict = U.create_mando_dict(mandatos_df, mando_flag)
         rodadas_atletas = [
-            rodadas_mando_dict[atletas_df.at[int(atleta_id), "clube_id"]]
+            rodadas_mando_dict.get(atletas_df.at[int(atleta_id), "clube_id"], [])
             for atleta_id in atletas_ids
         ]
     else:
-        rodadas_atletas = [
-            [str(rodada) for rodada in range(rodadas[0], rodadas[1] + 1)]
-            for _ in atletas_ids
-        ]
+        rodadas_atletas = [list(range(rodadas[0], rodadas[1] + 1)) for _ in atletas_ids]
+
+    scouts_df = pd.read_parquet("data/parquet/scouts.parquet")
 
     df = (
         pd.DataFrame(
             [
                 (
-                    pd.DataFrame(
-                        pd.read_parquet("data/parquet/scouts.parquet")
-                        .set_index("atleta_id")
-                        .loc[int(atleta_id), rodadas_atleta]
-                        .dropna()
-                        .tolist()
-                    )
-                    .dropna(axis="columns", how="all")
+                    scouts_df.loc[
+                        (scouts_df["atleta_id"] == int(atleta_id))
+                        & (scouts_df["rodada"].isin(rodadas_atleta)),
+                        "scout",
+                    ]
+                    .dropna()
+                    .apply(pd.Series)
+                    .fillna(0)
                     .sum()
                     .astype(int)
                     .to_dict()

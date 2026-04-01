@@ -20,35 +20,43 @@ async def create_clubes_and_posicoes():
 def create_confrontos_or_mandos(table_name: str):
     clubes_df = pd.read_csv("data/csv/clubes.csv", index_col=0)
 
-    pd.DataFrame(
-        np.empty((20, 38)) * np.nan,
-        index=clubes_df["id"].astype(int),
-        columns=list(map(str, range(1, 39))),
-    ).reset_index().rename(columns={"id": "clube_id"}).to_csv(
-        f"data/csv/{table_name}.csv"
+    empty_df = pd.DataFrame(
+        [
+            (clube_id, rodada)
+            for clube_id in clubes_df["id"].astype(int)
+            for rodada in range(1, 39)
+        ],
+        columns=["clube_id", "rodada"],
     )
+    if table_name == "mandos":
+        empty_df["mando"] = np.nan
+    else:
+        empty_df["adversario"] = np.nan
 
-
-async def create_pontos_cedidos_dfs():
-    posicoes_df = pd.read_csv("data/csv/posicoes.csv", index_col=0)
-    clubes_df = pd.read_csv("data/csv/clubes.csv", index_col=0)
-    os.makedirs("data/csv/pontos_cedidos", exist_ok=True)
-
-    await asyncio.gather(
-        *[
-            asyncio.to_thread(create_pontos_cedidos_posicao, clubes_df, posicao)
-            for posicao in posicoes_df["id"]
-        ]
-    )
+    empty_df.to_csv(f"data/csv/{table_name}.csv", index=False)
 
 
 def create_pontos_cedidos_posicao(clubes_df: pd.DataFrame, posicao: int):
-    pontos_cedidos_posicao_df = pd.DataFrame(
-        np.empty((20, 38)) * np.nan,
-        index=clubes_df["id"].astype(int),
-        columns=list(map(str, range(1, 39))),
+    empty_df = pd.DataFrame(
+        [
+            (posicao, clube_id, rodada)
+            for clube_id in clubes_df["id"].astype(int)
+            for rodada in range(1, 39)
+        ],
+        columns=["posicao", "clube_id", "rodada"],
     )
+    empty_df["pontos_cedidos"] = np.nan
 
-    pontos_cedidos_posicao_df.reset_index().rename(columns={"id": "clube_id"}).to_csv(
-        f"data/csv/pontos_cedidos/{posicao}.csv"
-    )
+    return empty_df
+
+
+def create_pontos_cedidos_dfs():
+    posicoes_df = pd.read_csv("data/csv/posicoes.csv", index_col=0)
+    clubes_df = pd.read_csv("data/csv/clubes.csv", index_col=0)
+
+    dfs = [
+        create_pontos_cedidos_posicao(clubes_df, posicao)
+        for posicao in posicoes_df["id"]
+    ]
+    consolidated_df = pd.concat(dfs, ignore_index=True)
+    consolidated_df.to_csv("data/csv/pontos_cedidos.csv", index=False)

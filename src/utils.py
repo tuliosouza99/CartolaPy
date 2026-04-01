@@ -37,43 +37,43 @@ def load_dict(name: str) -> dict[int, str]:
     return {int(k): v for k, v in json_dict.items()}
 
 
-def create_mando_dict(mandos_df: pd.DataFrame, mando_flag: int) -> dict[int, list[str]]:
-    rodadas_mando_list = (
-        mandos_df.eq(mando_flag).dot(mandos_df.columns + ",").str.rstrip(",")
-    )
-    rodadas_mando_list = [
-        mandos_clube.split(",") for mandos_clube in rodadas_mando_list
-    ]
-
-    return dict(zip(mandos_df.index, rodadas_mando_list))
+def create_mando_dict(mandos_df: pd.DataFrame, mando_flag: int) -> dict[int, list[int]]:
+    filtered = mandos_df.loc[mandos_df["mando"] == mando_flag]
+    grouped = filtered.groupby("clube_id")["rodada"].apply(list)
+    return grouped.to_dict()
 
 
 def get_pontuacoes_mando(
     df: pd.DataFrame,
-    partidas_mando_dict: dict[int, list[str]],
+    partidas_mando_dict: dict[int, list[int]],
     clube_id: int,
-    row_pontuacoes: tuple,
-    row_scouts: tuple | None = None,
+    atleta_id: int,
+    pontuacoes_df: pd.DataFrame,
+    scouts_df: pd.DataFrame | None = None,
 ):
-    pontuacoes = [
-        getattr(row_pontuacoes, f"round_{rodada}")
-        for rodada in partidas_mando_dict[clube_id]
-        if rodada != "" and ~np.isnan(getattr(row_pontuacoes, f"round_{rodada}"))
-    ]
-    if row_scouts is not None:
-        pontuacoes_basicas = [
-            getattr(row_scouts, f"round_{rodada}")
-            for rodada in partidas_mando_dict[clube_id]
-            if rodada != "" and ~np.isnan(getattr(row_scouts, f"round_{rodada}"))
-        ]
+    rodadas = partidas_mando_dict.get(clube_id, [])
+    if not rodadas:
+        return df
 
-    # Clube/Atleta atuou em alguma partida como Mandante/Visitante
+    mask = (pontuacoes_df["atleta_id"] == atleta_id) & (
+        pontuacoes_df["rodada"].isin(rodadas)
+    )
+    pontuacoes = pontuacoes_df.loc[mask, "pontuacao"].dropna().tolist()
+
     if len(pontuacoes) > 0:
-        df.at[row_pontuacoes[0], "Média"] = np.mean(pontuacoes)
-        df.at[row_pontuacoes[0], "Desvio Padrão"] = np.std(pontuacoes)
-        df.at[row_pontuacoes[0], "Jogos"] = len(pontuacoes)
-        if row_scouts is not None:
-            df.at[row_pontuacoes[0], "Média Básica"] = np.mean(pontuacoes_basicas)
+        df.at[atleta_id, "Média"] = np.mean(pontuacoes)
+        df.at[atleta_id, "Desvio Padrão"] = np.std(pontuacoes)
+        df.at[atleta_id, "Jogos"] = len(pontuacoes)
+
+        if scouts_df is not None:
+            mask = (scouts_df["atleta_id"] == atleta_id) & (
+                scouts_df["rodada"].isin(rodadas)
+            )
+            pontuacoes_basicas = (
+                scouts_df.loc[mask, "scout"].dropna().apply(get_basic_points).tolist()
+            )
+            if len(pontuacoes_basicas) > 0:
+                df.at[atleta_id, "Média Básica"] = np.mean(pontuacoes_basicas)
 
     return df
 
