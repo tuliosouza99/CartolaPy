@@ -1,4 +1,3 @@
-import pytest
 from src.enums import Scout, DataPath
 
 

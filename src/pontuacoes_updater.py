@@ -1,5 +1,6 @@
-import os
 import asyncio
+import os
+from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ from src.utils import get_page_json
 def create_df(atletas: pd.DataFrame) -> pd.DataFrame:
     df = pd.DataFrame(
         np.empty((atletas.shape[0], 38)) * np.nan,
-        index=atletas['atleta_id'],
+        index=atletas.loc[:, "atleta_id"],
         columns=list(map(str, range(1, 39))),
     )
 
@@ -22,31 +23,39 @@ async def update_pontuacoes_and_scouts_rodada(
     rodada: int, pontuacoes_df: pd.DataFrame, scouts_df: pd.DataFrame
 ):
     json = await get_page_json(
-        f'https://api.cartola.globo.com/atletas/pontuados/{rodada}'
+        f"https://api.cartola.globo.com/atletas/pontuados/{rodada}"
     )
 
     rodada_df = (
-        pd.DataFrame(json['atletas'])
+        pd.DataFrame(json["atletas"])
         .T.reset_index()
-        .astype({'index': 'int64'})
-        .sort_values(by=['index'])
-        .loc[lambda _df: _df['index'].isin(pontuacoes_df['atleta_id'].to_list())]
+        .astype({"index": "int64"})
+        .sort_values(by=["index"])
+        .loc[lambda _df: _df["index"].isin(pontuacoes_df["atleta_id"].to_list())]
     )
 
     pontuacoes_df.loc[
-        pontuacoes_df['atleta_id'].isin(rodada_df['index'].to_list()),
+        pontuacoes_df["atleta_id"].isin(rodada_df["index"].to_list()),
         str(rodada),
-    ] = rodada_df['pontuacao'].to_list()
+    ] = rodada_df["pontuacao"].to_list()
 
     scouts_df.loc[
-        scouts_df['atleta_id'].isin(rodada_df['index'].to_list()),
+        scouts_df["atleta_id"].isin(rodada_df["index"].to_list()),
         str(rodada),
-    ] = rodada_df['scout'].to_list()
+    ] = rodada_df["scout"].to_list()
 
 
-async def update_pontuacoes_and_scouts(first_round=False):
-    atletas_df = pd.read_csv('data/csv/atletas.csv', index_col=0)
-    rodada_atual = int(atletas_df.at[0, 'rodada_id'])
+async def update_pontuacoes_and_scouts(
+    rodadas: int | Iterable[int] | None = None, first_round: bool = False
+):
+    atletas_df = pd.read_csv("data/csv/atletas.csv", index_col=0)
+    rodada_atual = int(atletas_df.at[0, "rodada_id"])
+
+    if rodadas is None:
+        rodadas = range(1, rodada_atual + 1)
+    elif isinstance(rodadas, int):
+        rodadas = [rodadas]
+
     pontuacoes_df = create_df(atletas_df)
     scouts_df = create_df(atletas_df)
 
@@ -55,13 +64,13 @@ async def update_pontuacoes_and_scouts(first_round=False):
             *[
                 update_pontuacoes_and_scouts_rodada(rodada, pontuacoes_df, scouts_df)
                 for rodada in stqdm(
-                    range(1, rodada_atual + 1),
-                    desc='Atualizando as pontuações dos atletas...',
+                    rodadas,
+                    desc="Atualizando as pontuações dos atletas...",
                     backend=True,
                 )
             ]
         )
 
-    pontuacoes_df.to_csv('data/csv/pontuacoes.csv')
-    os.makedirs('data/parquet', exist_ok=True)
-    scouts_df.to_parquet('data/parquet/scouts.parquet')
+    pontuacoes_df.to_csv("data/csv/pontuacoes.csv")
+    os.makedirs("data/parquet", exist_ok=True)
+    scouts_df.to_parquet("data/parquet/scouts.parquet")

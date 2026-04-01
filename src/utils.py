@@ -22,7 +22,7 @@ async def get_page_json(url: str) -> dict:
 
 
 async def load_dict_async(name: str) -> dict[int, str]:
-    async with aiofiles.open(f'data/json/{name}.json', 'r') as f:
+    async with aiofiles.open(f"data/json/{name}.json", "r") as f:
         json_str = await f.read()
 
     json_dict = json.loads(json_str)
@@ -30,7 +30,7 @@ async def load_dict_async(name: str) -> dict[int, str]:
 
 
 def load_dict(name: str) -> dict[int, str]:
-    with open(f'data/json/{name}.json', 'r') as f:
+    with open(f"data/json/{name}.json", "r") as f:
         json_str = f.read()
 
     json_dict = json.loads(json_str)
@@ -39,9 +39,11 @@ def load_dict(name: str) -> dict[int, str]:
 
 def create_mando_dict(mandos_df: pd.DataFrame, mando_flag: int) -> dict[int, list[str]]:
     rodadas_mando_list = (
-        mandos_df.eq(mando_flag).dot(mandos_df.columns + ',').str.rstrip(',')
+        mandos_df.eq(mando_flag).dot(mandos_df.columns + ",").str.rstrip(",")
     )
-    rodadas_mando_list = [mandos_clube.split(',') for mandos_clube in rodadas_mando_list]
+    rodadas_mando_list = [
+        mandos_clube.split(",") for mandos_clube in rodadas_mando_list
+    ]
 
     return dict(zip(mandos_df.index, rodadas_mando_list))
 
@@ -54,24 +56,24 @@ def get_pontuacoes_mando(
     row_scouts: tuple | None = None,
 ):
     pontuacoes = [
-        getattr(row_pontuacoes, f'round_{rodada}')
+        getattr(row_pontuacoes, f"round_{rodada}")
         for rodada in partidas_mando_dict[clube_id]
-        if rodada != '' and ~np.isnan(getattr(row_pontuacoes, f'round_{rodada}'))
+        if rodada != "" and ~np.isnan(getattr(row_pontuacoes, f"round_{rodada}"))
     ]
     if row_scouts is not None:
         pontuacoes_basicas = [
-            getattr(row_scouts, f'round_{rodada}')
+            getattr(row_scouts, f"round_{rodada}")
             for rodada in partidas_mando_dict[clube_id]
-            if rodada != '' and ~np.isnan(getattr(row_scouts, f'round_{rodada}'))
+            if rodada != "" and ~np.isnan(getattr(row_scouts, f"round_{rodada}"))
         ]
 
     # Clube/Atleta atuou em alguma partida como Mandante/Visitante
     if len(pontuacoes) > 0:
-        df.at[row_pontuacoes[0], 'Média'] = np.mean(pontuacoes)
-        df.at[row_pontuacoes[0], 'Desvio Padrão'] = np.std(pontuacoes)
-        df.at[row_pontuacoes[0], 'Jogos'] = len(pontuacoes)
+        df.at[row_pontuacoes[0], "Média"] = np.mean(pontuacoes)
+        df.at[row_pontuacoes[0], "Desvio Padrão"] = np.std(pontuacoes)
+        df.at[row_pontuacoes[0], "Jogos"] = len(pontuacoes)
         if row_scouts is not None:
-            df.at[row_pontuacoes[0], 'Média Básica'] = np.mean(pontuacoes_basicas)
+            df.at[row_pontuacoes[0], "Média Básica"] = np.mean(pontuacoes_basicas)
 
     return df
 
@@ -85,48 +87,48 @@ def atletas_clean_and_filter(
     precos: tuple[int, int],
 ):
     clubes_dict, status_dict, posicoes_dict = (
-        load_dict('clubes'),
-        load_dict('status'),
-        load_dict('posicoes'),
+        load_dict("clubes"),
+        load_dict("status"),
+        load_dict("posicoes"),
     )
 
-    query = f'(Preço >= {precos[0]}) & (Preço <= {precos[1]}) & (Jogos >= {min_jogos})'
+    query = f"(Preço >= {precos[0]}) & (Preço <= {precos[1]}) & (Jogos >= {min_jogos})"
     if len(clubes) > 0:
-        query += f' & (Clube in {clubes})'
+        query += f" & (Clube in {clubes})"
     if len(posicoes) > 0:
-        query += f' & (Posição in {posicoes})'
+        query += f" & (Posição in {posicoes})"
     if len(status) > 0:
-        query += f' & (Status in {status})'
+        query += f" & (Status in {status})"
 
     return (
         atletas_df.assign(
             **{
-                'clube_id': atletas_df['clube_id'].map(clubes_dict),
-                'status_id': atletas_df['status_id'].map(status_dict),
-                'posicao_id': atletas_df['posicao_id'].map(posicoes_dict),
+                "clube_id": atletas_df["clube_id"].map(clubes_dict),
+                "status_id": atletas_df["status_id"].map(status_dict),
+                "posicao_id": atletas_df["posicao_id"].map(posicoes_dict),
             }
         )
         .loc[
             :,
             [
-                'apelido',
-                'clube_id',
-                'posicao_id',
-                'status_id',
-                'preco_num',
-                'Média',
-                'Média Básica',
-                'Desvio Padrão',
-                'Jogos',
+                "apelido",
+                "clube_id",
+                "posicao_id",
+                "status_id",
+                "preco_num",
+                "Média",
+                "Média Básica",
+                "Desvio Padrão",
+                "Jogos",
             ],
         ]
         .rename(
             columns={
-                'apelido': 'Nome',
-                'clube_id': 'Clube',
-                'posicao_id': 'Posição',
-                'status_id': 'Status',
-                'preco_num': 'Preço',
+                "apelido": "Nome",
+                "clube_id": "Clube",
+                "posicao_id": "Posição",
+                "status_id": "Status",
+                "preco_num": "Preço",
             },
         )
         .query(query)
@@ -134,14 +136,14 @@ def atletas_clean_and_filter(
 
 
 def color_status(status: str):
-    if status == 'Provável':
-        color = 'limegreen'
-    elif status == 'Dúvida':
-        color = 'gold'
+    if status == "Provável":
+        color = "limegreen"
+    elif status == "Dúvida":
+        color = "gold"
     else:
-        color = 'indianred'
+        color = "indianred"
 
-    return f'color: {color}'
+    return f"color: {color}"
 
 
 def get_basic_points(scouts: dict | float | None):
@@ -154,7 +156,7 @@ def get_basic_points(scouts: dict | float | None):
 
     return sum(
         [
-            v * getattr(Scout, k).value['value'] if v is not None else 0
+            v * getattr(Scout, k).value["value"] if v is not None else 0
             for k, v in valid_scouts.items()
         ]
     )
