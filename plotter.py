@@ -3,7 +3,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from src.enums import Scout
 import src.utils as U
+
+SCOUT_COLUMNS = [scout.name for scout in Scout]
 
 MAX_CACHE_ENTRIES = 3
 
@@ -27,17 +30,11 @@ def plot_atletas_geral(
     precos: tuple[int, int],
     rodadas: tuple[int, int],
 ):
-    pontuacoes_df = pd.read_csv("data/csv/pontuacoes.csv")
+    pontuacoes_df = pd.read_csv("data/csv/pontuacoes_and_scouts.csv")
     pontuacoes_df = pontuacoes_df.loc[
         (pontuacoes_df["rodada"] >= rodadas[0])
         & (pontuacoes_df["rodada"] <= rodadas[1])
     ]
-
-    scouts_df = pd.read_parquet("data/parquet/scouts.parquet")
-    scouts_df = scouts_df.loc[
-        (scouts_df["rodada"] >= rodadas[0]) & (scouts_df["rodada"] <= rodadas[1])
-    ]
-    scouts_df["pontuacao_basica"] = scouts_df["scout"].apply(U.get_basic_points)
 
     pontuacoes_stats = (
         pontuacoes_df.groupby("atleta_id")["pontuacao"]
@@ -46,7 +43,9 @@ def plot_atletas_geral(
     )
 
     scouts_stats = (
-        scouts_df.groupby("atleta_id")["pontuacao_basica"].mean().rename("Média Básica")
+        pontuacoes_df.groupby("atleta_id")["pontuacao_basica"]
+        .mean()
+        .rename("Média Básica")
     )
 
     atletas_df = atletas_df.join(pontuacoes_stats).join(scouts_stats)
@@ -80,15 +79,10 @@ def plot_atletas_mando(
     rodadas: tuple[int, int],
     mando_flag: int,
 ):
-    pontuacoes_df = pd.read_csv("data/csv/pontuacoes.csv")
+    pontuacoes_df = pd.read_csv("data/csv/pontuacoes_and_scouts.csv")
     pontuacoes_df = pontuacoes_df.loc[
         (pontuacoes_df["rodada"] >= rodadas[0])
         & (pontuacoes_df["rodada"] <= rodadas[1])
-    ]
-
-    scouts_df = pd.read_parquet("data/parquet/scouts.parquet")
-    scouts_df = scouts_df.loc[
-        (scouts_df["rodada"] >= rodadas[0]) & (scouts_df["rodada"] <= rodadas[1])
     ]
 
     mandos_df = pd.read_csv("data/csv/mandos.csv")
@@ -111,7 +105,6 @@ def plot_atletas_mando(
             clube_id,
             atleta_id,
             pontuacoes_df,
-            scouts_df,
         )
 
     atletas_df = atletas_df.dropna(subset=["Média"]).pipe(
@@ -237,19 +230,17 @@ def plot_player_scouts(
     else:
         rodadas_atletas = [list(range(rodadas[0], rodadas[1] + 1)) for _ in atletas_ids]
 
-    scouts_df = pd.read_parquet("data/parquet/scouts.parquet")
+    pontuacoes_df = pd.read_csv("data/csv/pontuacoes_and_scouts.csv")
 
     df = (
         pd.DataFrame(
             [
                 (
-                    scouts_df.loc[
-                        (scouts_df["atleta_id"] == int(atleta_id))
-                        & (scouts_df["rodada"].isin(rodadas_atleta)),
-                        "scout",
+                    pontuacoes_df.loc[
+                        (pontuacoes_df["atleta_id"] == int(atleta_id))
+                        & (pontuacoes_df["rodada"].isin(rodadas_atleta)),
+                        SCOUT_COLUMNS,
                     ]
-                    .dropna()
-                    .apply(pd.Series)
                     .fillna(0)
                     .sum()
                     .astype(int)

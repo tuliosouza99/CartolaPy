@@ -73,4 +73,7 @@ class ConfrontosOrMandosUpdater:
             ]
         )
 
-        self.df.to_csv(f"data/csv/{self.table_name}.csv", index=False)
+        col = "mando" if self.table_name == "mandos" else "adversario"
+        self.df.dropna(subset=[col]).to_csv(
+            f"data/csv/{self.table_name}.csv", index=False
+        )

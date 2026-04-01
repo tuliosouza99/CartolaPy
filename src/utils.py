@@ -49,7 +49,6 @@ def get_pontuacoes_mando(
     clube_id: int,
     atleta_id: int,
     pontuacoes_df: pd.DataFrame,
-    scouts_df: pd.DataFrame | None = None,
 ):
     rodadas = partidas_mando_dict.get(clube_id, [])
     if not rodadas:
@@ -65,15 +64,11 @@ def get_pontuacoes_mando(
         df.at[atleta_id, "Desvio Padrão"] = np.std(pontuacoes)
         df.at[atleta_id, "Jogos"] = len(pontuacoes)
 
-        if scouts_df is not None:
-            mask = (scouts_df["atleta_id"] == atleta_id) & (
-                scouts_df["rodada"].isin(rodadas)
-            )
-            pontuacoes_basicas = (
-                scouts_df.loc[mask, "scout"].dropna().apply(get_basic_points).tolist()
-            )
-            if len(pontuacoes_basicas) > 0:
-                df.at[atleta_id, "Média Básica"] = np.mean(pontuacoes_basicas)
+        pontuacoes_basicas = (
+            pontuacoes_df.loc[mask, "pontuacao_basica"].dropna().tolist()
+        )
+        if len(pontuacoes_basicas) > 0:
+            df.at[atleta_id, "Média Básica"] = np.mean(pontuacoes_basicas)
 
     return df
 

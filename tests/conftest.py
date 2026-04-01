@@ -4,14 +4,13 @@ import pandas as pd
 
 @pytest.fixture
 def sample_mandos_df():
-    columns = [str(i) for i in range(1, 6)]
-    data = [
-        [1, 0, 1, 0, 1],
-        [0, 1, 0, 1, 0],
-        [1, 1, 0, 0, 1],
-    ]
-    index = [1, 2, 3]
-    return pd.DataFrame(data, index=index, columns=columns)
+    return pd.DataFrame(
+        {
+            "clube_id": [1, 1, 1, 2, 2, 3, 3],
+            "rodada": [1, 3, 5, 2, 4, 1, 2],
+            "mando": [1, 1, 1, 1, 1, 1, 0],
+        }
+    )
 
 
 @pytest.fixture

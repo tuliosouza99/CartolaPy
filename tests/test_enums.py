@@ -26,10 +26,10 @@ class TestScout:
 class TestDataPath:
     def test_as_list_returns_all_paths(self):
         paths = DataPath.as_list()
-        assert len(paths) == 16
+        assert len(paths) == 10
         assert "data/csv/atletas.csv" in paths
         assert "data/json/clubes.json" in paths
-        assert "data/parquet/scouts.parquet" in paths
+        assert "data/csv/pontuacoes_and_scouts.csv" in paths
 
     def test_all_enum_members_have_values(self):
         for path in DataPath:

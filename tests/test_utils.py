@@ -12,18 +12,16 @@ from src.enums import Scout
 class TestCreateMandoDict:
     def test_create_mando_dict_home(self, sample_mandos_df):
         result = create_mando_dict(sample_mandos_df, mando_flag=1)
-        assert result[1] == ["1", "3", "5"]
-        assert result[2] == ["2", "4"]
-        assert result[3] == ["1", "2", "5"]
+        assert result[1] == [1, 3, 5]
+        assert result[2] == [2, 4]
+        assert result[3] == [1]
 
     def test_create_mando_dict_away(self, sample_mandos_df):
         result = create_mando_dict(sample_mandos_df, mando_flag=0)
-        assert result[1] == ["2", "4"]
-        assert result[2] == ["1", "3", "5"]
-        assert result[3] == ["3", "4"]
+        assert result[3] == [2]
 
     def test_create_mando_dict_empty_df(self):
-        df = pd.DataFrame({"1": [], "2": []})
+        df = pd.DataFrame({"clube_id": [], "rodada": [], "mando": []})
         result = create_mando_dict(df, mando_flag=1)
         assert result == {}
 

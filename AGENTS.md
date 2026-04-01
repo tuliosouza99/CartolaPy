@@ -150,9 +150,8 @@ df.assign(
 
 ### Data Files
 Data files are stored in:
-- `data/csv/` - CSV files for athletes, clubs, positions, scores
+- `data/csv/` - CSV files for athletes, clubs, positions, scores, pontuacoes_and_scouts
 - `data/json/` - JSON files for dictionaries (clubs, positions, status)
-- `data/parquet/` - Parquet files for scouts data
 - `data/csv/pontos_cedidos/` - CSV files for points ceded by position (1-6)
 
 ### Performance Considerations
