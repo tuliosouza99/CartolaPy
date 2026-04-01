@@ -1,6 +1,5 @@
 import asyncio
 import os
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -45,17 +44,9 @@ async def update_pontuacoes_and_scouts_rodada(
     ] = rodada_df["scout"].to_list()
 
 
-async def update_pontuacoes_and_scouts(
-    rodadas: int | Iterable[int] | None = None, first_round: bool = False
-):
+async def update_pontuacoes_and_scouts(first_round=False):
     atletas_df = pd.read_csv("data/csv/atletas.csv", index_col=0)
     rodada_atual = int(atletas_df.at[0, "rodada_id"])
-
-    if rodadas is None:
-        rodadas = range(1, rodada_atual + 1)
-    elif isinstance(rodadas, int):
-        rodadas = [rodadas]
-
     pontuacoes_df = create_df(atletas_df)
     scouts_df = create_df(atletas_df)
 
@@ -64,7 +55,7 @@ async def update_pontuacoes_and_scouts(
             *[
                 update_pontuacoes_and_scouts_rodada(rodada, pontuacoes_df, scouts_df)
                 for rodada in stqdm(
-                    rodadas,
+                    range(1, rodada_atual + 1),
                     desc="Atualizando as pontuações dos atletas...",
                     backend=True,
                 )

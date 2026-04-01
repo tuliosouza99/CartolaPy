@@ -60,12 +60,6 @@ async def update_tables(rodada: list[int] | int):
             confrontos_updater.update_table(rodada),
         )
         await asyncio.gather(
-            update_pontuacoes_and_scouts(rodada),
-            pontos_cedidos_updater.update_pontos_cedidos(
-                [rodada_ - 1 for rodada_ in rodada]
-            ),
-        )
-        await asyncio.gather(
             update_pontuacoes_and_scouts(),
             pontos_cedidos_updater.update_pontos_cedidos(
                 [rodada_ - 1 for rodada_ in rodada]
