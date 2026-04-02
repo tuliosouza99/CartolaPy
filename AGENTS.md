@@ -8,21 +8,39 @@ CartolaPy is a Streamlit application for visualization and analysis of data extr
 
 ```
 CartolaPy/
-├── CartolaPy.py           # Main Streamlit app entry point
-├── plotter.py             # Plotting functions using plotly
-├── src/
-│   ├── enums.py           # Scout, DataPath, UpdateTablesMsg enums
-│   ├── utils.py           # Utility functions (API calls, data processing)
-│   ├── atletas_updater.py # Updates player data from API
-│   ├── confrontos_or_mandos_updater.py  # Updates match/home-away data
-│   ├── pontos_cedidos_updater.py        # Updates points cedidos (given up)
-│   ├── pontuacoes_updater.py            # Updates scores and scouts
-│   └── pre_season/
-│       ├── dfs_creator.py   # Creates initial dataframes
-│       └── dicts_creator.py  # Creates lookup dictionaries
-├── data/                  # Runtime data (CSV, JSON, Parquet)
-├── tests/                 # Test files (currently empty)
-└── pyproject.toml         # Project configuration
+├── backend/
+│   ├── __init__.py
+│   ├── main.py               # FastAPI entry point
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── routes.py         # REST API endpoints
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── config.py         # Settings and constants
+│   │   ├── scheduler.py      # APScheduler job definitions
+│   │   └── lifespan.py       # Startup/shutdown handlers
+│   ├── services/
+│   │   ├── __init__.py
+│   │   └── updater.py        # Unified data update service
+│   ├── src/                  # Data logic (moved from original src/)
+│   │   ├── enums.py
+│   │   ├── utils.py
+│   │   ├── atletas_updater.py
+│   │   ├── confrontos_or_mandos_updater.py
+│   │   ├── pontos_cedidos_updater.py
+│   │   ├── pontuacoes_updater.py
+│   │   └── pre_season/
+│   │       ├── dfs_creator.py
+│   │       └── dicts_creator.py
+│   └── data/                  # Persisted data files
+├── frontend/
+│   ├── __init__.py
+│   └── streamlit_app.py      # Thin Streamlit client (HTTP calls only)
+├── CartolaPy.py               # Original monolithic app (deprecated)
+├── plotter.py                 # Plotting functions (shared)
+├── data/                      # Runtime data (gitignored)
+├── tests/                     # Test files
+└── pyproject.toml            # Project configuration
 ```
 
 ## Build/Lint/Test Commands
@@ -53,7 +71,15 @@ ruff format .
 
 ### Running the Application
 ```bash
-streamlit run CartolaPy.py
+# Start the backend (FastAPI server on port 8000)
+cd backend && uvicorn main:app --reload --port 8000
+
+# In a separate terminal, start the frontend (Streamlit on port 8501)
+streamlit run frontend/streamlit_app.py
+
+# Or run both with concurrent processes
+cd backend && uvicorn main:app --port 8000 &
+streamlit run frontend/streamlit_app.py
 ```
 
 ### Testing
@@ -216,16 +242,11 @@ def plot_atletas_geral(atletas_df: pd.DataFrame, ...):
 
 ## Current Linting Issues
 
-Running `ruff check .` produces 1 error:
-- **E741**: Ambiguous variable name `I` in `src/enums.py:13` - the letter 'I' looks like numeral 1
+Running `ruff check .` produces pre-existing errors in original code:
+- **F821**: Undefined name `empty_df` in `backend/src/pre_season/dfs_creator.py` (lines 31, 33, 35, 49, 51)
+- **F821**: Undefined names `row_pontuacoes` and `row_scouts` in `backend/src/utils.py` (lines 59-75)
 
-Running `ruff format --check .` shows 10 files need reformatting.
-
-## Known Limitations
-
-- **No tests exist** - the `tests/` directory is empty
-- **No mypy/type checking** configured
-- **No pre-commit hooks** configured
+These are bugs in the original code that were present before refactoring.
 
 ## Development Notes
 
