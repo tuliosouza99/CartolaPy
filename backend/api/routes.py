@@ -1,0 +1,137 @@
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+from ..dependencies import get_data_loader
+from ..services import DataLoader
+from .models import SortDirection, TableResponse
+
+router = APIRouter()
+
+
+@router.get("/tables/atletas", response_model=TableResponse)
+async def get_atletas(
+    request: Request,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1),
+    sort_by: str | None = None,
+    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+):
+    df = data_loader.atletas.df.copy()
+
+    if sort_by is not None:
+        if sort_by not in df.columns:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            )
+        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
+
+    total = len(df)
+    offset = (page - 1) * page_size
+    paginated_df = df.iloc[offset : offset + page_size]
+
+    return TableResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        data=paginated_df.to_dict(orient="records"),
+        sort_by=sort_by,
+        sort_direction=sort_direction.value,
+    )
+
+
+@router.get("/tables/pontuacoes", response_model=TableResponse)
+async def get_pontuacoes(
+    request: Request,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1),
+    sort_by: str | None = None,
+    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+):
+    df = data_loader.pontuacoes.df.copy()
+
+    if sort_by is not None:
+        if sort_by not in df.columns:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            )
+        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
+
+    total = len(df)
+    offset = (page - 1) * page_size
+    paginated_df = df.iloc[offset : offset + page_size]
+
+    return TableResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        data=paginated_df.to_dict(orient="records"),
+        sort_by=sort_by,
+        sort_direction=sort_direction.value,
+    )
+
+
+@router.get("/tables/confrontos", response_model=TableResponse)
+async def get_confrontos(
+    request: Request,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1),
+    sort_by: str | None = None,
+    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+):
+    df = data_loader.confrontos.df.copy()
+
+    if sort_by is not None:
+        if sort_by not in df.columns:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            )
+        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
+
+    total = len(df)
+    offset = (page - 1) * page_size
+    paginated_df = df.iloc[offset : offset + page_size]
+
+    return TableResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        data=paginated_df.to_dict(orient="records"),
+        sort_by=sort_by,
+        sort_direction=sort_direction.value,
+    )
+
+
+@router.get("/tables/pontos-cedidos", response_model=TableResponse)
+async def get_pontos_cedidos(
+    request: Request,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1),
+    sort_by: str | None = None,
+    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+):
+    df = data_loader.pontos_cedidos.df.copy()
+
+    if sort_by is not None:
+        if sort_by not in df.columns:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            )
+        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
+
+    total = len(df)
+    offset = (page - 1) * page_size
+    paginated_df = df.iloc[offset : offset + page_size]
+
+    return TableResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        data=paginated_df.to_dict(orient="records"),
+        sort_by=sort_by,
+        sort_direction=sort_direction.value,
+    )

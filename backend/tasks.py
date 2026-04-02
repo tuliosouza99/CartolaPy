@@ -2,19 +2,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Request
 from taskiq import TaskiqDepends
 
-from backend.services import DataLoader
-from backend.tkq import broker
-
-
-async def get_data_loader(request: Request = TaskiqDepends()) -> DataLoader:
-    return request.app.state.data_loader
-
-
-async def get_rodada_id_state(request: Request = TaskiqDepends()) -> dict:
-    return request.app.state.rodada_id_state
+from .dependencies import get_data_loader, get_rodada_id_state
+from .services import DataLoader
+from .tkq import broker
 
 
 @broker.task(schedule=[{"cron": "*/5 * * * *"}])
