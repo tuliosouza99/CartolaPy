@@ -11,8 +11,8 @@ from src.utils import get_page_json
 class ConfrontosOrMandosUpdater:
     def __init__(self, table_name: str):
         self.table_name = table_name
-        self.df = pd.read_csv(f'data/csv/{self.table_name}.csv', index_col=0).set_index(
-            'clube_id'
+        self.df = pd.read_csv(f"data/csv/{self.table_name}.csv", index_col=0).set_index(
+            "clube_id"
         )
 
     def _update_clube(
@@ -21,32 +21,30 @@ class ConfrontosOrMandosUpdater:
         rodada_atual: int,
         partidas_rodada: pd.DataFrame,
     ):
-        if clube in partidas_rodada['clube_casa_id'].values:
-            idx = int(np.where(partidas_rodada['clube_casa_id'] == clube)[0])
+        if clube in partidas_rodada["clube_casa_id"].values:
+            idx = int(np.where(partidas_rodada["clube_casa_id"] == clube)[0])
 
-            if partidas_rodada.at[idx, 'valida']:
-                if self.table_name == 'mandos':
+            if partidas_rodada.at[idx, "valida"]:
+                if self.table_name == "mandos":
                     self.df.loc[clube, str(rodada_atual)] = 1
                 else:
                     self.df.loc[clube, str(rodada_atual)] = partidas_rodada.at[
-                        idx, 'clube_visitante_id'
+                        idx, "clube_visitante_id"
                     ]
         else:
-            idx = int(np.where(partidas_rodada['clube_visitante_id'] == clube)[0])
+            idx = int(np.where(partidas_rodada["clube_visitante_id"] == clube)[0])
 
-            if partidas_rodada.at[idx, 'valida']:
-                if self.table_name == 'mandos':
+            if partidas_rodada.at[idx, "valida"]:
+                if self.table_name == "mandos":
                     self.df.loc[clube, str(rodada_atual)] = 0
                 else:
                     self.df.loc[clube, str(rodada_atual)] = partidas_rodada.at[
-                        idx, 'clube_casa_id'
+                        idx, "clube_casa_id"
                     ]
 
     async def _update_table_one_round(self, rodada: int):
-        json = await get_page_json(
-            f'https://api.cartola.globo.com/partidas/{rodada}'
-        )
-        partidas_rodada = pd.DataFrame(json['partidas'])
+        json = await get_page_json(f"https://api.cartola.globo.com/partidas/{rodada}")
+        partidas_rodada = pd.DataFrame(json["partidas"])
 
         await asyncio.gather(
             *[
@@ -64,11 +62,11 @@ class ConfrontosOrMandosUpdater:
                 self._update_table_one_round(rodada)
                 async for rodada in stqdm(
                     rodadas,
-                    desc=f'Atualizando {self.table_name} para as rodadas {rodadas}',
+                    desc=f"Atualizando {self.table_name} para as rodadas {rodadas}",
                     total=len(list(rodadas)),
                     backend=True,
                 )
             ]
         )
 
-        self.df.reset_index().to_csv(f'data/csv/{self.table_name}.csv')
+        self.df.reset_index().to_csv(f"data/csv/{self.table_name}.csv")

@@ -4,20 +4,20 @@ from src.utils import get_page_json
 
 
 async def update_atletas():
-    json = await get_page_json('https://api.cartola.globo.com/atletas/mercado')
+    json = await get_page_json("https://api.cartola.globo.com/atletas/mercado")
 
-    pd.DataFrame(json['atletas']).drop(
+    pd.DataFrame(json["atletas"]).drop(
         columns=[
-            'scout',
-            'pontos_num',
-            'variacao_num',
-            'media_num',
-            'jogos_num',
-            'slug',
-            'apelido_abreviado',
-            'nome',
-            'foto',
+            "scout",
+            "pontos_num",
+            "variacao_num",
+            "media_num",
+            "jogos_num",
+            "slug",
+            "apelido_abreviado",
+            "nome",
+            "foto",
         ]
-    ).sort_values(by=['atleta_id']).reset_index(drop=True).to_csv(
-        'data/csv/atletas.csv'
+    ).sort_values(by=["atleta_id"]).reset_index(drop=True).to_csv(
+        "data/csv/atletas.csv"
     )
