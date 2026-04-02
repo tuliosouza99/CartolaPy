@@ -17,4 +17,13 @@ dependencies = [
 dev = [
     "marimo>=0.22.0",
     "ruff>=0.15.8",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-env",
+    "anyio>=4.0.0",
+]
+
+[tool.pytest.ini_options]
+env = [
+    "ENVIRONMENT=pytest",
 ]

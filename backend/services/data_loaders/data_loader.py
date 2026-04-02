@@ -20,6 +20,9 @@ class DataLoader:
         if self.atletas.rodada_id is None:
             raise ValueError("Rodada ID not found in atletas data")
 
+        await self._update_expensive_tables()
+
+    async def _update_expensive_tables(self):
         async with asyncio.TaskGroup() as tg:
             tg.create_task(self.confrontos.fill_confrontos(self.atletas.rodada_id))
             tg.create_task(self.pontuacoes.fill_pontuacoes(self.atletas.rodada_id))

@@ -8,12 +8,13 @@ from .tkq import broker
 
 
 async def setup_dl(app: FastAPI):
-    app.state.dl = DataLoader()
-    await app.state.dl.fill_data()
+    app.state.data_loader = DataLoader()
+    await app.state.data_loader.fill_data()
+    app.state.rodada_id_state = {"current": None, "previous": None}
 
 
 async def shutdown_dl(app: FastAPI):
-    await app.state.dl.request_handler.close()
+    await app.state.data_loader.request_handler.close()
 
 
 @asynccontextmanager
