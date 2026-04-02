@@ -1,43 +1,54 @@
-# AGENTS.md - CartolaPy
-
-CartolaPy is a Streamlit application for visualization and analysis of data extracted from the official Cartola FC API.
+# AGENTS.md
 
 ## Project Overview
 
-- **Python**: 3.10+
-- **Package Manager**: uv (see `uv.lock`)
-- **UI Framework**: Streamlit
-- **Key Dependencies**: pandas, numpy, plotly, aiohttp, aiofiles
+CartolaPy is a Streamlit application for visualization and analysis of data extracted from the official Cartola FC API (Brazilian football/soccer fantasy app). The project uses Python with async/await patterns, pandas, numpy, and plotly for data visualization.
 
 ## Project Structure
 
 ```
 CartolaPy/
+├── CartolaPy.py           # Main Streamlit app entry point
+├── plotter.py             # Plotting functions using plotly
 ├── src/
-│   ├── enums.py                    # Scout, DataPath, UpdateTablesMsg enums
-│   ├── utils.py                    # Utility functions (async HTTP, data processing)
-│   ├── atletas_updater.py          # Athletes data updater
-│   ├── pontuacoes_updater.py       # Scores updater
-│   ├── confrontos_or_mandos_updater.py  # Matches/homestead updater
-│   ├── pontos_cedidos_updater.py   # Points ceded updater
+│   ├── enums.py           # Scout, DataPath, UpdateTablesMsg enums
+│   ├── utils.py           # Utility functions (API calls, data processing)
+│   ├── atletas_updater.py # Updates player data from API
+│   ├── confrontos_or_mandos_updater.py  # Updates match/home-away data
+│   ├── pontos_cedidos_updater.py        # Updates points cedidos (given up)
+│   ├── pontuacoes_updater.py            # Updates scores and scouts
 │   └── pre_season/
-│       ├── dicts_creator.py        # JSON dicts creator
-│       └── dfs_creator.py          # DataFrames creator
-├── plotter.py                      # Plotting functions
-├── CartolaPy.py                    # Main Streamlit application
-├── data/                           # Data files (CSV, JSON, Parquet)
-└── pyproject.toml
+│       ├── dfs_creator.py   # Creates initial dataframes
+│       └── dicts_creator.py  # Creates lookup dictionaries
+├── data/                  # Runtime data (CSV, JSON, Parquet)
+├── tests/                 # Test files (currently empty)
+└── pyproject.toml         # Project configuration
 ```
 
-## Commands
+## Build/Lint/Test Commands
 
-### Installation
+### Environment Setup
 ```bash
-# Using uv
-uv sync
-
-# Using pip
+# Create conda environment (as specified in README)
+conda create -n cartolapy python=3.10
+conda activate cartolapy
 pip install -r requirements.txt
+
+# Or using the existing venv
+source .venv/bin/activate
+```
+
+### Linting and Formatting
+```bash
+# Run ruff linter
+ruff check .
+
+# Run ruff formatter (check only)
+ruff format --check .
+
+# Auto-fix and format
+ruff check --fix .
+ruff format .
 ```
 
 ### Running the Application
@@ -45,140 +56,180 @@ pip install -r requirements.txt
 streamlit run CartolaPy.py
 ```
 
-### Running Single Tests
-No test framework is currently configured. If adding tests, use:
+### Testing
 ```bash
-pytest tests/ -v
-pytest tests/test_file.py::test_function  # Single test
+# Run all tests
+pytest
+
+# Run a single test file
+pytest tests/test_file.py
+
+# Run tests matching a pattern
+pytest -k "test_pattern"
+
+# Run with verbose output
+pytest -v
+
+# Run with coverage (if added)
+pytest --cov=src --cov-report=html
 ```
 
 ## Code Style Guidelines
 
-### Type Hints
-- Use type hints for all function parameters and return values
-- Use `| None` syntax (not `Optional[]`) for nullable types
-- Use `tuple[int, int]` (not `Tuple[int, int]`) for generics
-
-```python
-# Good
-async def get_page_json(url: str) -> dict:
-def get_pontuacoes_mando(df: pd.DataFrame, ...) -> dict[int, list[str]]:
-
-# Good - union syntax
-row_scouts: tuple | None = None
-atletas_df: pd.DataFrame | None = None
-```
-
-### Naming Conventions
-- **Functions/variables**: `snake_case` (e.g., `get_page_json`, `pontuacoes_df`)
-- **Classes**: `PascalCase` (e.g., `ConfrontosOrMandosUpdater`, `PontosCedidosUpdater`)
-- **Enums**: `PascalCase` for enum name, `SCREAMING_SNAKE` for members (e.g., `Scout.G`, `DataPath.ATLETAS`)
-- **Constants**: `SCREAMING_SNAKE_CASE` (e.g., `PRECO_MIN`, `MAX_CACHE_ENTRIES`)
-- **Private methods**: Prefix with `_` (e.g., `_update_clube`, `_read_pontos_cedidos`)
-
-### Imports
+### Import Organization
 Organize imports in three groups with blank lines between:
-1. Standard library (`asyncio`, `json`, `os`, `warnings`)
-2. Third-party packages (`pandas`, `numpy`, `aiohttp`)
-3. Local imports (`from src.enums import ...`, `from src.utils import ...`)
+1. Standard library imports
+2. Third-party imports (aiohttp, pandas, numpy, etc.)
+3. Local/application imports
 
 ```python
+# Standard library
+import json
 import asyncio
-import os
-import warnings
+from collections.abc import Mapping
+from typing import Iterable
 
-import pandas as pd
+# Third-party
+import aiohttp
+import aiofiles
 import numpy as np
-import streamlit as st
+import pandas as pd
+from aiolimiter import AsyncLimiter
+from stqdm import stqdm
 
+# Local imports
 from src.enums import Scout, DataPath
 from src.utils import get_page_json
 ```
 
-### Async/Await Patterns
-- Use `asyncio.gather()` for concurrent operations
-- Use `asyncio.to_thread()` for blocking operations
-- Use `stqdm` for progress bars in async contexts
+### Type Hints
+- Use type hints for function parameters and return types
+- Use `|` for union types (Python 3.10+): `dict[int, str]`
+- Use `None` instead of `Optional[T]` for optional parameters
+- Use `tuple` for fixed-length tuples
 
 ```python
-await asyncio.gather(
-    create_dicts(),
-    update_atletas()
-)
+# Good
+async def get_page_json(url: str) -> dict:
+def load_dict(name: str) -> dict[int, str]:
+def create_df(atletas: pd.DataFrame) -> pd.DataFrame:
 
-await asyncio.gather(
-    *[
-        update_pontuacoes_and_scouts_rodada(rodada, pontuacoes_df, scouts_df)
-        for rodada in stqdm(range(1, rodada_atual + 1), ...)
-    ]
-)
+# Union types
+def get_basic_points(scouts: dict | float | None):
+def update_table(self, rodadas: int | Iterable[int]):
 ```
 
-### Enums
-Use enums for related constants. The codebase uses three main enums:
-- `Scout`: Scout types with name and value (e.g., `Scout.G = {'name': 'Gol', 'value': 8}`)
-- `DataPath`: Data file paths
-- `UpdateTablesMsg`: User-facing messages
+### Naming Conventions
+- **Classes**: `PascalCase` (e.g., `Scout`, `ConfrontosOrMandosUpdater`)
+- **Functions/methods**: `snake_case` (e.g., `get_page_json`, `load_dict_async`)
+- **Variables**: `snake_case` (e.g., `pontuacoes_df`, `clube_id`)
+- **Constants**: `SCREAMING_SNAKE_CASE` or descriptive lowercase (e.g., `PRECO_MIN`, `rate_limiter`)
+- **Enums**: `PascalCase` for enum names, `SCREAMING_SNAKE_CASE` for values by convention
+- **Avoid single-letter variable names** except in comprehensions or well-known contexts
+
+### Enum Usage
+```python
+class Scout(Enum):
+    G = {'name': 'Gol', 'value': 8}
+    A = {'name': 'Assistência', 'value': 5}
+    # ... other scouts
+
+    @classmethod
+    def as_basic_scouts_list(cls):
+        return [
+            scout.name
+            for scout in cls
+            if scout.name not in ('G', 'A', 'FT', 'PP', 'DP', 'SG', 'CV', 'GC')
+        ]
+
+class DataPath(Enum):
+    ATLETAS = 'data/csv/atletas.csv'
+    # ... other paths
+
+    @classmethod
+    def as_list(cls):
+        return [path.value for path in cls]
+```
+
+### Async/Await Patterns
+- Use `async/await` for I/O-bound operations (API calls, file operations)
+- Use `asyncio.gather()` for concurrent operations
+- Use `asyncio.to_thread()` for CPU-bound operations in async context
+- Use `aiofiles` for async file operations
+
+```python
+async def update_atletas():
+    json = await get_page_json('https://api.cartola.globo.com/atletas/mercado')
+    # ...
+
+async def update_tables(rodada: list[int] | int):
+    await asyncio.gather(
+        create_dicts(),
+        update_atletas(),
+        # ...
+    )
+```
 
 ### Error Handling
-- Use conditional checks rather than try/except where appropriate
-- Use `np.isnan()` for NaN checks
-- Use `isinstance()` for type checking
+- Use specific exception types when catching
+- Handle None and NaN values explicitly
+- Use `np.isnan()` for numpy floats, `isinstance(x, Mapping)` for dict-like objects
 
 ```python
-if not isinstance(scouts, Mapping) and (scouts is None or np.isnan(scouts)):
-    return np.nan
-
-if mercado_json['status_mercado'] != 1 or mercado_json['game_over']:
-    st.sidebar.info(UpdateTablesMsg.MERCADO_FECHADO.value)
+def get_basic_points(scouts: dict | float | None):
+    if not isinstance(scouts, Mapping) and (scouts is None or np.isnan(scouts)):
+        return np.nan
+    # ...
 ```
 
-### Pandas Patterns
-- Method chaining with `.pipe()` for transformations
-- Use `.loc[]` and `.iloc[]` for indexing
-- Use `df.assign()` for adding columns
-- Use `lambda` in column definitions when needed
+### Data Processing with Pandas
+- Method chaining with `.pipe()` for readable transformations
+- Use `.assign()` for adding columns
+- Use `df.loc[]` and `df.iloc[]` for conditional updates
+- Use `stqdm` for progress bars in async loops
 
 ```python
-df.assign(
-    **{
-        'Média': np.nanmean(np.array(pontuacoes_df), axis=1, keepdims=True),
-        'Desvio Padrão': np.nanstd(np.array(pontuacoes_df), axis=1, keepdims=True),
-    }
-).dropna(subset=['Média']).pipe(U.atletas_clean_and_filter, ...)
+df = (
+    pd.DataFrame(json['atletas'])
+    .sort_values(by=['atleta_id'])
+    .reset_index(drop=True)
+    .pipe(some_function, arg1, arg2)
+)
+
+# Async with progress
+await asyncio.gather(
+    *[update_function(rodada) for rodada in stqdm(range(1, 38), desc='Updating...')]
+)
 ```
 
-### Data Files
-Data files are stored in:
-- `data/csv/` - CSV files for athletes, clubs, positions, scores, pontuacoes_and_scouts
-- `data/json/` - JSON files for dictionaries (clubs, positions, status)
-- `data/csv/pontos_cedidos/` - CSV files for points ceded by position (1-6)
-
-### Performance Considerations
-- Use `@st.cache_resource` for expensive computations
-- Use `AsyncLimiter` for rate limiting async HTTP requests
-- Use `rate_limiter = AsyncLimiter(10, 1)` for API calls (10 requests per second)
+### Streamlit Usage
+- Use `st.cache_resource` for expensive computations that don't change per-user
+- Use containers and expanders for organization
+- Use sidebar for controls
 
 ```python
 @st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
-def plot_atletas_geral(...):
+def plot_atletas_geral(atletas_df: pd.DataFrame, ...):
+    # cached function
     ...
 ```
 
-### API Endpoints
-The app uses these Cartola API endpoints:
-- `https://api.cartola.globo.com/atletas/mercado` - Athletes market data
-- `https://api.cartola.globo.com/atletas/pontuados/{rodada}` - Round scores
-- `https://api.cartola.globo.com/partidas/{rodada}` - Match data
-- `https://api.cartola.globo.com/mercado/status` - Market status
+## Current Linting Issues
 
-## Adding New Features
+Running `ruff check .` produces 1 error:
+- **E741**: Ambiguous variable name `I` in `src/enums.py:13` - the letter 'I' looks like numeral 1
 
-1. For new data updaters, follow the pattern in `src/atletas_updater.py` or `src/pontuacoes_updater.py`
-2. For new plotting functions, add to `plotter.py` with `@st.cache_resource`
-3. For new enums, add to `src/enums.py`
-4. For utility functions, add to `src/utils.py`
+Running `ruff format --check .` shows 10 files need reformatting.
 
-## Working Directory
+## Known Limitations
 
-All file operations use relative paths from the project root (`/Users/tuliosouza/repos/CartolaPy`).
+- **No tests exist** - the `tests/` directory is empty
+- **No mypy/type checking** configured
+- **No pre-commit hooks** configured
+
+## Development Notes
+
+- The project uses `uv.lock` suggesting `uv` for dependency management
+- Data files are stored in `data/` directory (gitignored)
+- Uses Brazilian Portuguese in some comments and UI strings
+- API calls are rate-limited with `AsyncLimiter(10, 1)` (10 requests per second)

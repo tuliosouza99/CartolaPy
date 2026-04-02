@@ -37,12 +37,18 @@ class DataPath(Enum):
     CLUBES = "data/csv/clubes.csv"
     CONFRONTOS = "data/csv/confrontos.csv"
     MANDOS = "data/csv/mandos.csv"
-    PONTUACOES_AND_SCOUTS = "data/csv/pontuacoes_and_scouts.csv"
+    PONTUACOES = "data/csv/pontuacoes.csv"
     POSICOES = "data/csv/posicoes.csv"
-    PONTOS_CEDIDOS = "data/csv/pontos_cedidos.csv"
+    PONTOS_CEDIDOS_GOL = "data/csv/pontos_cedidos/1.csv"
+    PONTOS_CEDIDOS_LAT = "data/csv/pontos_cedidos/2.csv"
+    PONTOS_CEDIDOS_ZAG = "data/csv/pontos_cedidos/3.csv"
+    PONTOS_CEDIDOS_MEI = "data/csv/pontos_cedidos/4.csv"
+    PONTOS_CEDIDOS_ATA = "data/csv/pontos_cedidos/5.csv"
+    PONTOS_CEDIDOS_TEC = "data/csv/pontos_cedidos/6.csv"
     CLUBES_DICT = "data/json/clubes.json"
     POSICOES_DICT = "data/json/posicoes.json"
     STATUS_DICT = "data/json/status.json"
+    SCOUTS = "data/parquet/scouts.parquet"
 
     @classmethod
     def as_list(cls):

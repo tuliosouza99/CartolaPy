@@ -1,8 +1,8 @@
 import asyncio
 from typing import Iterable
 
-import numpy as np
 import pandas as pd
+import numpy as np
 from stqdm import stqdm
 
 from src.utils import get_page_json
@@ -11,7 +11,9 @@ from src.utils import get_page_json
 class ConfrontosOrMandosUpdater:
     def __init__(self, table_name: str):
         self.table_name = table_name
-        self.df = pd.read_csv(f"data/csv/{self.table_name}.csv")
+        self.df = pd.read_csv(f"data/csv/{self.table_name}.csv", index_col=0).set_index(
+            "clube_id"
+        )
 
     def _update_clube(
         self,
@@ -23,26 +25,20 @@ class ConfrontosOrMandosUpdater:
             idx = int(np.where(partidas_rodada["clube_casa_id"] == clube)[0])
 
             if partidas_rodada.at[idx, "valida"]:
-                mask = (self.df["clube_id"] == clube) & (
-                    self.df["rodada"] == rodada_atual
-                )
                 if self.table_name == "mandos":
-                    self.df.loc[mask, "mando"] = 1
+                    self.df.loc[clube, str(rodada_atual)] = 1
                 else:
-                    self.df.loc[mask, "adversario"] = partidas_rodada.at[
+                    self.df.loc[clube, str(rodada_atual)] = partidas_rodada.at[
                         idx, "clube_visitante_id"
                     ]
         else:
             idx = int(np.where(partidas_rodada["clube_visitante_id"] == clube)[0])
 
             if partidas_rodada.at[idx, "valida"]:
-                mask = (self.df["clube_id"] == clube) & (
-                    self.df["rodada"] == rodada_atual
-                )
                 if self.table_name == "mandos":
-                    self.df.loc[mask, "mando"] = 0
+                    self.df.loc[clube, str(rodada_atual)] = 0
                 else:
-                    self.df.loc[mask, "adversario"] = partidas_rodada.at[
+                    self.df.loc[clube, str(rodada_atual)] = partidas_rodada.at[
                         idx, "clube_casa_id"
                     ]
 
@@ -53,7 +49,7 @@ class ConfrontosOrMandosUpdater:
         await asyncio.gather(
             *[
                 asyncio.to_thread(self._update_clube, clube, rodada, partidas_rodada)
-                for clube in self.df["clube_id"].unique()
+                for clube in self.df.index
             ]
         )
 
@@ -73,7 +69,4 @@ class ConfrontosOrMandosUpdater:
             ]
         )
 
-        col = "mando" if self.table_name == "mandos" else "adversario"
-        self.df.dropna(subset=[col]).to_csv(
-            f"data/csv/{self.table_name}.csv", index=False
-        )
+        self.df.reset_index().to_csv(f"data/csv/{self.table_name}.csv")
