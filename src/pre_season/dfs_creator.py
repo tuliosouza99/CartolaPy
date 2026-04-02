@@ -27,7 +27,12 @@ def create_confrontos_or_mandos(table_name: str):
     ).reset_index().rename(columns={"id": "clube_id"}).to_csv(
         f"data/csv/{table_name}.csv"
     )
+    if table_name == "mandos":
+        empty_df["mando"] = np.nan
+    else:
+        empty_df["adversario"] = np.nan
 
+    empty_df.to_csv(f"data/csv/{table_name}.csv", index=False)
 
 async def create_pontos_cedidos_dfs():
     posicoes_df = pd.read_csv("data/csv/posicoes.csv", index_col=0)
@@ -40,7 +45,9 @@ async def create_pontos_cedidos_dfs():
             for posicao in posicoes_df["id"]
         ]
     )
+    empty_df["pontos_cedidos"] = np.nan
 
+    return empty_df
 
 def create_pontos_cedidos_posicao(clubes_df: pd.DataFrame, posicao: int):
     pontos_cedidos_posicao_df = pd.DataFrame(

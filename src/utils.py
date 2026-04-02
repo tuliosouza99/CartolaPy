@@ -50,10 +50,10 @@ def create_mando_dict(mandos_df: pd.DataFrame, mando_flag: int) -> dict[int, lis
 
 def get_pontuacoes_mando(
     df: pd.DataFrame,
-    partidas_mando_dict: dict[int, list[str]],
+    partidas_mando_dict: dict[int, list[int]],
     clube_id: int,
-    row_pontuacoes: tuple,
-    row_scouts: tuple | None = None,
+    atleta_id: int,
+    pontuacoes_df: pd.DataFrame,
 ):
     pontuacoes = [
         getattr(row_pontuacoes, f"round_{rodada}")
@@ -67,7 +67,6 @@ def get_pontuacoes_mando(
             if rodada != "" and ~np.isnan(getattr(row_scouts, f"round_{rodada}"))
         ]
 
-    # Clube/Atleta atuou em alguma partida como Mandante/Visitante
     if len(pontuacoes) > 0:
         df.at[row_pontuacoes[0], "Média"] = np.mean(pontuacoes)
         df.at[row_pontuacoes[0], "Desvio Padrão"] = np.std(pontuacoes)

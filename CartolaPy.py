@@ -2,19 +2,19 @@ import asyncio
 import os
 import warnings
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import streamlit as st
 
 import plotter as P
-import src.utils as U
 import src.pre_season.dfs_creator as dfs_creator
-from src.enums import DataPath, UpdateTablesMsg
-from src.pre_season.dicts_creator import create_dicts
+import src.utils as U
 from src.atletas_updater import update_atletas
 from src.confrontos_or_mandos_updater import ConfrontosOrMandosUpdater
+from src.enums import DataPath, UpdateTablesMsg
 from src.pontos_cedidos_updater import PontosCedidosUpdater
 from src.pontuacoes_updater import update_pontuacoes_and_scouts
+from src.pre_season.dicts_creator import create_dicts
 
 warnings.filterwarnings("ignore")
 PRECO_MIN = 0
@@ -110,8 +110,12 @@ async def main():
                 )
                 rounds_to_update = np.where(
                     [
-                        confrontos_df[str(col)].isna().all()
-                        for col in confrontos_df.columns
+                        not confrontos_df.loc[
+                            confrontos_df["rodada"] == col, "adversario"
+                        ]
+                        .notna()
+                        .any()
+                        for col in range(1, mercado_json["rodada_atual"] + 1)
                     ]
                 )[0]
                 rounds_to_update = [round_ + 1 for round_ in rounds_to_update]
