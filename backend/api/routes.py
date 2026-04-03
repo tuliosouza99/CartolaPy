@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from ..dependencies import get_data_loader
 from ..services import DataLoader
-from .models import SortDirection, TableResponse
+from .models import SortDirection, TableResponse, TableStatus, UpdateResponse
 
 router = APIRouter()
 
@@ -135,3 +135,30 @@ async def get_pontos_cedidos(
         sort_by=sort_by,
         sort_direction=sort_direction.value,
     )
+
+
+@router.get("/tables/status", response_model=TableStatus)
+async def get_table_status(
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+):
+    return TableStatus(
+        atletas=data_loader.atletas.last_updated,
+        confrontos=data_loader.confrontos.last_updated,
+        pontuacoes=data_loader.pontuacoes.last_updated,
+        pontos_cedidos=data_loader.pontos_cedidos.last_updated,
+    )
+
+
+@router.post("/update/atletas", response_model=UpdateResponse)
+async def update_atletas(
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+):
+    try:
+        await data_loader.atletas.fill_atletas()
+        return UpdateResponse(
+            success=True,
+            message="Atletas updated successfully",
+            updated_at=data_loader.atletas.last_updated,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

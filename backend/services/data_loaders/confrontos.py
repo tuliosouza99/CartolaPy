@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -10,10 +11,15 @@ class Confrontos:
         self.columns = ["clube_id", "opponent_clube_id", "is_mandante", "rodada_id"]
         self.request_handler = request_handler
         self._df = pd.DataFrame(columns=self.columns)
+        self._last_updated: datetime | None = None
 
     @property
     def df(self):
         return self._df
+
+    @property
+    def last_updated(self) -> datetime | None:
+        return self._last_updated
 
     async def fill_confrontos(self, rodada_atual: int):
         async with asyncio.TaskGroup() as tg:
@@ -24,6 +30,7 @@ class Confrontos:
 
         rodadas_dfs = [task.result() for task in tasks]
         self._df = pd.concat([self._df, *rodadas_dfs], ignore_index=True)
+        self._last_updated = datetime.now(timezone.utc)
 
     async def _fill_confrontos_rodada(self, rodada: int) -> pd.DataFrame:
         page_json = await self.request_handler.make_get_request(

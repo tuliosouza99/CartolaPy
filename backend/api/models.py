@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Generic, TypeVar
 
@@ -40,3 +41,16 @@ class SortParamsDep(BaseModel):
         if isinstance(v, str) and v not in ("asc", "desc"):
             raise ValueError("sort_direction must be 'asc' or 'desc'")
         return v
+
+
+class TableStatus(BaseModel):
+    atletas: datetime | None = None
+    confrontos: datetime | None = None
+    pontuacoes: datetime | None = None
+    pontos_cedidos: datetime | None = None
+
+
+class UpdateResponse(BaseModel):
+    success: bool
+    message: str
+    updated_at: datetime | None = None

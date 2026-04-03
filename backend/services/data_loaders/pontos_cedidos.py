@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pandas as pd
 
 from ..enums import Scout
@@ -15,10 +17,15 @@ class PontosCedidos:
             *Scout.as_list(),
         ]
         self._df = pd.DataFrame(columns=self.columns)
+        self._last_updated: datetime | None = None
 
     @property
     def df(self):
         return self._df
+
+    @property
+    def last_updated(self) -> datetime | None:
+        return self._last_updated
 
     def fill_pontos_cedidos(
         self, pontuacoes_df: pd.DataFrame, confrontos_df: pd.DataFrame
@@ -39,3 +46,4 @@ class PontosCedidos:
             )
             .drop(columns=["opponent_clube_id"])
         )
+        self._last_updated = datetime.now(timezone.utc)
