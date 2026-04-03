@@ -42,11 +42,19 @@ class DataLoader:
 
     def load_all_from_redis(self, store: RedisDataFrameStore) -> bool:
         atletas = Atletas.load_from_redis(store)
-        confrontos = Confrontos.load_from_redis(store)
-        pontuacoes = Pontuacoes.load_from_redis(store)
-        pontos_cedidos = PontosCedidos.load_from_redis(store)
+        if atletas is None:
+            return False
 
-        if None in (atletas, confrontos, pontuacoes, pontos_cedidos):
+        confrontos = Confrontos.load_from_redis(store)
+        if confrontos is None:
+            return False
+
+        pontuacoes = Pontuacoes.load_from_redis(store)
+        if pontuacoes is None:
+            return False
+
+        pontos_cedidos = PontosCedidos.load_from_redis(store)
+        if pontos_cedidos is None:
             return False
 
         self.atletas = atletas
@@ -59,4 +67,5 @@ class DataLoader:
         self.pontuacoes.request_handler = self.request_handler
 
         self.pontos_cedidos = pontos_cedidos
+
         return True
