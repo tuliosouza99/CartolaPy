@@ -19,7 +19,7 @@ async def update_data_task(
     rodada_id_state: Annotated[dict, TaskiqDepends(get_rodada_id_state)],
 ) -> dict:
     logger.info("update_data_task started")
-    old_rodada_id = data_loader.atletas.rodada_id
+    old_rodada_id = store.load_rodada_id()
     logger.info(f"Old rodada_id: {old_rodada_id}")
 
     await data_loader.atletas.fill_atletas()

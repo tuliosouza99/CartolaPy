@@ -42,7 +42,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: taskiq worker backend.tkq:broker
+    command: taskiq worker backend.tkq:broker --workers 1
     environment:
       - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=production

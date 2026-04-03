@@ -59,6 +59,8 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+      timeZoneName: 'short',
     })
   }
 

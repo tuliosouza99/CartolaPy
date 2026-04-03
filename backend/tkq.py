@@ -1,12 +1,8 @@
 import logging
 import os
 
-from fastapi import FastAPI
 from taskiq import AsyncBroker, InMemoryBroker, TaskiqEvents
 from taskiq_redis.redis_broker import RedisStreamBroker
-
-from .lifespan import setup_dl
-from .main import get_app
 
 env = os.environ.get("ENVIRONMENT")
 
@@ -26,7 +22,10 @@ async def startup_handler(state) -> None:
 
     if broker.is_worker_process:
         logger.info("Setting up app for worker")
-        app: FastAPI = get_app()
+        from .lifespan import setup_dl
+        from .main import get_app
+
+        app = get_app()
         await setup_dl(app)
         state.fastapi_app = app
         state.rodada_id_state = app.state.rodada_id_state
