@@ -2,8 +2,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from ..dependencies import get_data_loader
+from ..dependencies import get_data_loader, get_redis_store
 from ..services import DataLoader
+from ..services.redis_store import RedisDataFrameStore
 from .models import SortDirection, TableResponse, TableStatus, UpdateResponse
 
 router = APIRouter()
@@ -139,22 +140,24 @@ async def get_pontos_cedidos(
 
 @router.get("/tables/status", response_model=TableStatus)
 async def get_table_status(
-    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
     return TableStatus(
-        atletas=data_loader.atletas.last_updated,
-        confrontos=data_loader.confrontos.last_updated,
-        pontuacoes=data_loader.pontuacoes.last_updated,
-        pontos_cedidos=data_loader.pontos_cedidos.last_updated,
+        atletas=store.load_last_updated("atletas"),
+        confrontos=store.load_last_updated("confrontos"),
+        pontuacoes=store.load_last_updated("pontuacoes"),
+        pontos_cedidos=store.load_last_updated("pontos_cedidos"),
     )
 
 
 @router.post("/update/atletas", response_model=UpdateResponse)
 async def update_atletas(
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
     try:
         await data_loader.atletas.fill_atletas()
+        data_loader.atletas.save_to_redis(store)
         return UpdateResponse(
             success=True,
             message="Atletas updated successfully",

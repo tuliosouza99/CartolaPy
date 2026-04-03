@@ -4,10 +4,13 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from ..enums import Scout
+from ..redis_store import RedisDataFrameStore
 from ..request_handler import RequestHandler
 
 
 class Pontuacoes:
+    REDIS_KEY = "pontuacoes"
+
     def __init__(self, request_handler: RequestHandler):
         self.columns = [
             "atleta_id",
@@ -40,6 +43,30 @@ class Pontuacoes:
         rodadas_dfs = [task.result() for task in tasks]
         self._df = pd.concat([self._df, *rodadas_dfs], ignore_index=True)
         self._last_updated = datetime.now(timezone.utc)
+
+    def save_to_redis(self, store: RedisDataFrameStore) -> None:
+        store.save_dataframe(self.REDIS_KEY, self._df)
+        store.save_last_updated(self.REDIS_KEY, self._last_updated)
+
+    @classmethod
+    def load_from_redis(cls, store: RedisDataFrameStore) -> "Pontuacoes | None":
+        df = store.load_dataframe(cls.REDIS_KEY)
+        if df is None:
+            return None
+        pontuacoes = object.__new__(cls)
+        pontuacoes.columns = [
+            "atleta_id",
+            "posicao_id",
+            "clube_id",
+            "rodada_id",
+            "pontuacao",
+            "pontuacao_basica",
+            *Scout.as_list(),
+        ]
+        pontuacoes.request_handler = None
+        pontuacoes._df = df
+        pontuacoes._last_updated = store.load_last_updated(cls.REDIS_KEY)
+        return pontuacoes
 
     async def _fill_pontuacoes_rodada(self, rodada: int) -> pd.DataFrame:
         page_json = await self.request_handler.make_get_request(

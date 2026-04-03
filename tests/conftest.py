@@ -23,6 +23,7 @@ def fastapi_app():
 def init_taskiq_deps(fastapi_app):
     if isinstance(broker, InMemoryBroker):
         taskiq_fastapi.populate_dependency_context(broker, fastapi_app)
+        broker.state.fastapi_app = fastapi_app
 
         mock_atletas = MagicMock()
         mock_atletas.rodada_id = 15
@@ -52,5 +53,6 @@ def init_taskiq_deps(fastapi_app):
 
         fastapi_app.state.data_loader = mock_data_loader
         fastapi_app.state.rodada_id_state = mock_rodada_id_state
+        broker.state.rodada_id_state = mock_rodada_id_state
     yield
     broker.custom_dependency_context = {}

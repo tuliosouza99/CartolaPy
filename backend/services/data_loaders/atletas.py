@@ -3,9 +3,12 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from ..request_handler import RequestHandler
+from ..redis_store import RedisDataFrameStore
 
 
 class Atletas:
+    REDIS_KEY = "atletas"
+
     def __init__(self, request_handler: RequestHandler):
         self.columns = [
             "atleta_id",
@@ -40,3 +43,29 @@ class Atletas:
         self._rodada_id = page_json["atletas"][0]["rodada_id"]
         self._df = pd.DataFrame(page_json["atletas"]).loc[:, self.columns]
         self._last_updated = datetime.now(timezone.utc)
+
+    def save_to_redis(self, store: RedisDataFrameStore) -> None:
+        store.save_dataframe(self.REDIS_KEY, self._df)
+        store.save_rodada_id(self._rodada_id)
+        store.save_last_updated(self.REDIS_KEY, self._last_updated)
+
+    @classmethod
+    def load_from_redis(cls, store: RedisDataFrameStore) -> "Atletas | None":
+        df = store.load_dataframe(cls.REDIS_KEY)
+        if df is None:
+            return None
+        atletas = object.__new__(cls)
+        atletas.columns = [
+            "atleta_id",
+            "rodada_id",
+            "clube_id",
+            "posicao_id",
+            "status_id",
+            "preco_num",
+            "apelido",
+        ]
+        atletas.request_handler = None
+        atletas._df = df
+        atletas._rodada_id = store.load_rodada_id()
+        atletas._last_updated = store.load_last_updated(cls.REDIS_KEY)
+        return atletas

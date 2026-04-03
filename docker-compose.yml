@@ -1,4 +1,16 @@
 services:
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - cartolapy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -6,6 +18,12 @@ services:
     command: uvicorn backend.main:get_app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - cartolapy
 
@@ -25,6 +43,12 @@ services:
       context: .
       dockerfile: Dockerfile
     command: taskiq worker backend.tkq:broker
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - cartolapy
 
@@ -33,6 +57,12 @@ services:
       context: .
       dockerfile: Dockerfile
     command: taskiq scheduler backend.tkq_sched:scheduler
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - cartolapy
 

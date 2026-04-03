@@ -1,5 +1,6 @@
 import asyncio
 
+from ..redis_store import RedisDataFrameStore
 from ..request_handler import RequestHandler
 from .atletas import Atletas
 from .confrontos import Confrontos
@@ -32,3 +33,30 @@ class DataLoader:
             self.pontuacoes.df,
             self.confrontos.df,
         )
+
+    def save_all_to_redis(self, store: RedisDataFrameStore) -> None:
+        self.atletas.save_to_redis(store)
+        self.confrontos.save_to_redis(store)
+        self.pontuacoes.save_to_redis(store)
+        self.pontos_cedidos.save_to_redis(store)
+
+    def load_all_from_redis(self, store: RedisDataFrameStore) -> bool:
+        atletas = Atletas.load_from_redis(store)
+        confrontos = Confrontos.load_from_redis(store)
+        pontuacoes = Pontuacoes.load_from_redis(store)
+        pontos_cedidos = PontosCedidos.load_from_redis(store)
+
+        if None in (atletas, confrontos, pontuacoes, pontos_cedidos):
+            return False
+
+        self.atletas = atletas
+        self.atletas.request_handler = self.request_handler
+
+        self.confrontos = confrontos
+        self.confrontos.request_handler = self.request_handler
+
+        self.pontuacoes = pontuacoes
+        self.pontuacoes.request_handler = self.request_handler
+
+        self.pontos_cedidos = pontos_cedidos
+        return True
