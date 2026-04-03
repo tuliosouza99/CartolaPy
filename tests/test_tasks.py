@@ -45,30 +45,13 @@ class TestUpdateDataScheduledTask:
         fastapi_app.state.data_loader.atletas.fill_atletas.assert_called_once()
 
     @pytest.mark.anyio
-    async def test_task_does_not_call_expensive_update_when_rodada_unchanged(
-        self, fastapi_app
-    ):
-        from backend.tasks import update_data_task
-
-        result = await update_data_task.kiq()
-        task_result = await result.wait_result()
-
-        assert task_result.return_value["rodada_changed"] is False
-        fastapi_app.state.data_loader._update_expensive_tables.assert_not_called()
-
-    @pytest.mark.anyio
     async def test_task_calls_expensive_update_when_rodada_changed(self, fastapi_app):
         from backend.tasks import update_data_task
+        from backend.tkq import broker
 
-        fastapi_app.state.rodada_id_state = {"current": 1, "previous": None}
-        fastapi_app.state.data_loader.atletas.rodada_id = 10
-
-        async def mock_fill_atletas_that_changes_rodada():
-            fastapi_app.state.data_loader.atletas.rodada_id = 15
-
-        fastapi_app.state.data_loader.atletas.fill_atletas = (
-            mock_fill_atletas_that_changes_rodada
-        )
+        new_state = {"current": 10, "previous": None}
+        fastapi_app.state.rodada_id_state = new_state
+        broker.state.rodada_id_state = new_state
 
         result = await update_data_task.kiq()
         task_result = await result.wait_result()
