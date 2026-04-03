@@ -29,6 +29,7 @@ async def startup_handler(state) -> None:
         await setup_dl(app)
         state.fastapi_app = app
         state.rodada_id_state = app.state.rodada_id_state
+        state.redis_store = app.state.redis_store
         logger.info(f"App set in state: {app}")
     else:
         logger.info("Not a worker, no setup needed")

@@ -6,29 +6,6 @@ from taskiq import InMemoryBroker
 
 from backend.tkq import broker
 
-_mock_store = MagicMock()
-_mock_store.load_rodada_id = MagicMock(return_value=15)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def patch_redis_store():
-    from backend import tasks
-    from backend.services.redis_store import RedisDataFrameStore
-
-    original_new = RedisDataFrameStore.__new__
-
-    def mock_new(cls, *args, **kwargs):
-        if cls is RedisDataFrameStore:
-            return _mock_store
-        return original_new(cls, *args, **kwargs)
-
-    RedisDataFrameStore.__new__ = staticmethod(mock_new)
-    tasks.get_redis_store = lambda: _mock_store
-
-    yield
-
-    RedisDataFrameStore.__new__ = original_new
-
 
 @pytest.fixture
 def anyio_backend():
@@ -36,18 +13,17 @@ def anyio_backend():
 
 
 @pytest.fixture
-def mock_store():
-    return _mock_store
-
-
-@pytest.fixture
-def fastapi_app(mock_store):
+def fastapi_app():
     from backend.main import get_app
 
-    app = get_app()
+    return get_app()
+
+
+@pytest.fixture(autouse=True)
+def init_taskiq_deps(fastapi_app):
     if isinstance(broker, InMemoryBroker):
-        taskiq_fastapi.populate_dependency_context(broker, app)
-        broker.state.fastapi_app = app
+        taskiq_fastapi.populate_dependency_context(broker, fastapi_app)
+        broker.state.fastapi_app = fastapi_app
 
         mock_atletas = MagicMock()
         mock_atletas.rodada_id = 15
@@ -74,11 +50,11 @@ def fastapi_app(mock_store):
         mock_data_loader._update_expensive_tables = AsyncMock(return_value=None)
 
         mock_rodada_id_state = {"current": 15, "previous": 15}
+        mock_redis_store = MagicMock()
 
-        app.state.data_loader = mock_data_loader
-        app.state.rodada_id_state = mock_rodada_id_state
+        fastapi_app.state.data_loader = mock_data_loader
+        fastapi_app.state.rodada_id_state = mock_rodada_id_state
         broker.state.rodada_id_state = mock_rodada_id_state
-    yield app
-    if isinstance(broker, InMemoryBroker):
-        pass
+        broker.state.redis_store = mock_redis_store
+    yield
     broker.custom_dependency_context = {}
