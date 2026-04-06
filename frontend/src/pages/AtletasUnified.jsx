@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import TableView from '../components/TableView'
-import UpdateButton from '../components/UpdateButton'
+import FilterSidebar from '../components/FilterSidebar'
 import RoundIntervalSlider from '../components/RoundIntervalSlider'
 import MandoToggle from '../components/MandoToggle'
 
@@ -10,13 +10,25 @@ const STATUS_COLORS = {
   red: '#ef4444',
 }
 
+const DEFAULT_FILTERS = {
+  search: '',
+  clube_ids: [],
+  posicao_ids: [],
+  status_ids: [],
+  preco_min: 0,
+  preco_max: 30,
+  options: { clubes: [], posicoes: [], status: [] },
+}
+
 function AtletasUnified() {
   const [statusData, setStatusData] = useState(null)
   const [rodadaRange, setRodadaRange] = useState({ min: 1, max: 1 })
   const [isMandante, setIsMandante] = useState('geral')
+  const [filters, setFilters] = useState(DEFAULT_FILTERS)
 
   useEffect(() => {
     fetchStatus()
+    fetchFilterOptions()
   }, [])
 
   const fetchStatus = async () => {
@@ -32,14 +44,31 @@ function AtletasUnified() {
     }
   }
 
-  const lastUpdatedMap = useMemo(() => {
-    if (!statusData) return {}
-    return {
-      atletas: statusData.atletas,
-      pontuacoes: statusData.pontuacoes,
-      confrontos: statusData.confrontos,
+  const fetchFilterOptions = async () => {
+    try {
+      const res = await fetch('/api/tables/filter-options')
+      if (res.ok) {
+        const data = await res.json()
+        const sortedClubes = (data.clubes || []).sort((a, b) =>
+          (a.nome_fantasia || '').localeCompare(b.nome_fantasia || '')
+        )
+        setFilters(prev => ({
+          ...prev,
+          options: {
+            clubes: sortedClubes,
+            posicoes: data.posicoes || [],
+            status: data.status || [],
+          },
+        }))
+      }
+    } catch (err) {
+      console.error('Failed to fetch filter options:', err)
     }
-  }, [statusData])
+  }
+
+  const handleFiltersChange = useCallback((newFilters) => {
+    setFilters(prev => ({ ...prev, ...newFilters }))
+  }, [])
 
   const columns = useMemo(() => [
     { key: 'apelido', label: 'Atleta', sortable: true },
@@ -176,7 +205,7 @@ function AtletasUnified() {
     )
   }, [])
 
-  const filterComponent = useMemo(() => (
+  const topBarComponent = useMemo(() => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
       <RoundIntervalSlider
         min={1}
@@ -191,25 +220,45 @@ function AtletasUnified() {
     </div>
   ), [rodadaRange, isMandante, statusData?.rodada_atual])
 
-  const extraParams = useMemo(() => ({
-    rodada_min: rodadaRange.min,
-    rodada_max: rodadaRange.max,
-    is_mandante: isMandante,
-  }), [rodadaRange, isMandante])
+  const extraParams = useMemo(() => {
+    const params = {
+      rodada_min: rodadaRange.min,
+      rodada_max: rodadaRange.max,
+      is_mandante: isMandante,
+    }
+
+    if (filters.search) params.search = filters.search
+    if (filters.clube_ids && filters.clube_ids.length > 0) params.clube_ids = filters.clube_ids.join(',')
+    if (filters.posicao_ids && filters.posicao_ids.length > 0) params.posicao_ids = filters.posicao_ids.join(',')
+    if (filters.status_ids && filters.status_ids.length > 0) params.status_ids = filters.status_ids.join(',')
+    if (filters.preco_min !== 0) params.preco_min = filters.preco_min
+    if (filters.preco_max !== 30) params.preco_max = filters.preco_max
+
+    return params
+  }, [rodadaRange, isMandante, filters])
 
   return (
-    <div>
-      <TableView
-        title="Atletas"
-        endpoint="atletas-unified"
-        columns={columns}
-        lastUpdatedMap={lastUpdatedMap}
-        action={<UpdateButton onSuccess={fetchStatus} />}
-        filterComponent={filterComponent}
-        extraParams={extraParams}
-        expandable={true}
-        expandedContent={expandedContent}
+    <div style={{ display: 'flex', gap: '1.5rem' }}>
+      <FilterSidebar
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
       />
+      <div style={{ flex: 1 }}>
+        <TableView
+          title="Atletas"
+          endpoint="atletas-unified"
+          columns={columns}
+          filterComponent={topBarComponent}
+          extraParams={extraParams}
+          expandable={true}
+          expandedContent={expandedContent}
+          hideCount={true}
+          hideUpdate={true}
+          hideTimestamps={true}
+          defaultSortBy="media"
+          defaultSortDirection="desc"
+        />
+      </div>
     </div>
   )
 }

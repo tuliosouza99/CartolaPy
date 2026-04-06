@@ -203,6 +203,37 @@ async def get_partidas(
     return partidas
 
 
+@router.get("/tables/filter-options")
+async def get_filter_options(
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+):
+    clubes_cache = store.load_json("clubes")
+    posicoes_cache = store.load_json("posicoes")
+    status_cache = store.load_json("status")
+
+    clubes_list = (
+        [{"id": int(k), **v} for k, v in clubes_cache.items()] if clubes_cache else []
+    )
+
+    posicoes_list = (
+        [{"id": v["id"], "nome": v["nome"]} for v in posicoes_cache.values()]
+        if posicoes_cache
+        else []
+    )
+
+    status_list = (
+        [{"id": v["id"], "nome": v["nome"]} for v in status_cache.values()]
+        if status_cache
+        else []
+    )
+
+    return {
+        "clubes": clubes_list,
+        "posicoes": posicoes_list,
+        "status": status_list,
+    }
+
+
 @router.post("/update/atletas", response_model=UpdateResponse)
 async def update_atletas(
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
@@ -232,10 +263,26 @@ async def get_atletas_unified(
     rodada_min: int = Query(default=1, ge=1),
     rodada_max: int | None = None,
     is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+    search: str | None = Query(default=None),
+    clube_ids: str | None = Query(default=None),
+    posicao_ids: str | None = Query(default=None),
+    status_ids: str | None = Query(default=None),
+    preco_min: int | None = Query(default=None),
+    preco_max: int | None = Query(default=None),
 ):
     rodada_atual = data_loader.atletas.rodada_id or 1
     if rodada_max is None:
         rodada_max = rodada_atual
+
+    parsed_clube_ids = (
+        [int(x) for x in clube_ids.split(",") if x.isdigit()] if clube_ids else None
+    )
+    parsed_posicao_ids = (
+        [int(x) for x in posicao_ids.split(",") if x.isdigit()] if posicao_ids else None
+    )
+    parsed_status_ids = (
+        [int(x) for x in status_ids.split(",") if x.isdigit()] if status_ids else None
+    )
 
     clubes_cache = store.load_json("clubes")
     posicoes_cache = store.load_json("posicoes")
@@ -263,6 +310,12 @@ async def get_atletas_unified(
         posicoes_cache=posicoes_cache,
         status_cache=status_cache,
         proximo_jogo_cache=proximo_jogo_cache,
+        search=search,
+        clube_ids=parsed_clube_ids,
+        posicao_ids=parsed_posicao_ids,
+        status_ids=parsed_status_ids,
+        preco_min=preco_min,
+        preco_max=preco_max,
     )
 
     output_cols = [
@@ -354,3 +407,34 @@ async def get_proximo_jogo(
         visitante_id=0,
         rodada=next_rodada,
     )
+
+
+@router.get("/redis/all")
+async def get_redis_all(
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+):
+    keys = [
+        "atletas",
+        "pontuacoes",
+        "confrontos",
+        "pontos_cedidos",
+        "clubes",
+        "posicoes",
+        "status",
+        "rodada_id",
+    ]
+
+    result = {}
+    for key in keys:
+        result[key] = store.load_json(key)
+
+    metadata = store.load_metadata()
+    result["_metadata"] = metadata
+
+    redis_keys = store.redis.keys("cartolapy:partidas:*")
+    for key in redis_keys:
+        decoded_key = key.decode() if isinstance(key, bytes) else key
+        nome = decoded_key.replace("cartolapy:", "")
+        result[nome] = store.load_json(nome)
+
+    return result

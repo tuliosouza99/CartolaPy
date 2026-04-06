@@ -92,6 +92,9 @@ class RedisDataFrameStore:
         data = self.redis.get(self._key(key))
         if data is None:
             return None
-        if isinstance(data, bytes):
-            data = data.decode()
-        return json.loads(data)
+        try:
+            if isinstance(data, bytes):
+                data = data.decode()
+            return json.loads(data)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return None

@@ -1,11 +1,8 @@
 import { useState, useEffect, createContext, useContext } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
-import Atletas from './pages/Atletas'
 import AtletasUnified from './pages/AtletasUnified'
-import Pontuacoes from './pages/Pontuacoes'
-import Confrontos from './pages/Confrontos'
-import PontosCedidos from './pages/PontosCedidos'
+import DevDashboard from './pages/DevDashboard'
 
 export const ThemeContext = createContext()
 
@@ -27,13 +24,13 @@ function App() {
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      <div style={{ 
-        minHeight: '100vh', 
+      <div style={{
+        minHeight: '100vh',
         background: 'var(--bg-primary)',
         transition: 'background-color var(--transition)'
       }}>
         <Navbar />
-        <main style={{ 
+        <main style={{
           flex: 1,
           padding: '2rem',
           maxWidth: '1400px',
@@ -42,11 +39,8 @@ function App() {
         }}>
           <Routes>
             <Route path="/" element={<Navigate to="/atletas" replace />} />
-            <Route path="/atletas" element={<Atletas />} />
-            <Route path="/atletas-unified" element={<AtletasUnified />} />
-            <Route path="/pontuacoes" element={<Pontuacoes />} />
-            <Route path="/confrontos" element={<Confrontos />} />
-            <Route path="/pontos-cedidos" element={<PontosCedidos />} />
+            <Route path="/atletas" element={<AtletasUnified />} />
+            <Route path="/dev" element={<DevDashboard />} />
           </Routes>
         </main>
       </div>

@@ -1,8 +1,16 @@
+import unicodedata
 from typing import Literal
 
 import pandas as pd
 
 from backend.services.enums import Scout
+
+
+def normalize_string(s: str) -> str:
+    if not isinstance(s, str):
+        return s
+    nfkd = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
 
 
 def compute_atletas_unified(
@@ -17,6 +25,12 @@ def compute_atletas_unified(
     posicoes_cache: dict | None,
     status_cache: dict | None,
     proximo_jogo_cache: dict | None = None,
+    search: str | None = None,
+    clube_ids: list[int] | None = None,
+    posicao_ids: list[int] | None = None,
+    status_ids: list[int] | None = None,
+    preco_min: int | None = None,
+    preco_max: int | None = None,
 ) -> pd.DataFrame:
     atletas_unique = atletas_df.sort_values(
         "rodada_id", ascending=False
@@ -138,22 +152,13 @@ def compute_atletas_unified(
                 str(match["mandante_id"]) == clube_id_str
                 or str(match["visitante_id"]) == clube_id_str
             ):
-                if str(match["mandante_id"]) == clube_id_str:
-                    return {
-                        "mandante_escudo": match.get("mandante_escudo", ""),
-                        "visitante_escudo": match.get("visitante_escudo", ""),
-                        "mandante_id": match["mandante_id"],
-                        "visitante_id": match["visitante_id"],
-                        "rodada": next_rodada,
-                    }
-                else:
-                    return {
-                        "mandante_escudo": match.get("visitante_escudo", ""),
-                        "visitante_escudo": match.get("mandante_escudo", ""),
-                        "mandante_id": match["visitante_id"],
-                        "visitante_id": match["mandante_id"],
-                        "rodada": next_rodada,
-                    }
+                return {
+                    "mandante_escudo": match.get("mandante_escudo", ""),
+                    "visitante_escudo": match.get("visitante_escudo", ""),
+                    "mandante_id": match["mandante_id"],
+                    "visitante_id": match["visitante_id"],
+                    "rodada": next_rodada,
+                }
         return {
             "mandante_escudo": "",
             "visitante_escudo": "",
@@ -163,6 +168,33 @@ def compute_atletas_unified(
         }
 
     result["proximo_jogo"] = result["clube_id"].apply(get_proximo_jogo)
+
+    if search:
+        normalized_search = normalize_string(search)
+        result = result[
+            result["apelido"].apply(
+                lambda x: (
+                    normalize_string(x).find(normalized_search) >= 0
+                    if pd.notna(x)
+                    else False
+                )
+            )
+        ]
+
+    if clube_ids is not None and len(clube_ids) > 0:
+        result = result[result["clube_id"].isin(clube_ids)]
+
+    if posicao_ids is not None and len(posicao_ids) > 0:
+        result = result[result["posicao_id"].isin(posicao_ids)]
+
+    if status_ids is not None and len(status_ids) > 0:
+        result = result[result["status_id"].isin(status_ids)]
+
+    if preco_min is not None:
+        result = result[result["preco_num"] >= preco_min]
+
+    if preco_max is not None:
+        result = result[result["preco_num"] <= preco_max]
 
     return result
 

@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 
-function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, action, expandable, expandedContent, filterComponent, extraParams }) {
+function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, action, expandable, expandedContent, filterComponent, extraParams, hideCount, hideUpdate, hideTimestamps, defaultSortBy, defaultSortDirection = 'asc' }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [pageSize] = useState(20)
-  const [sortBy, setSortBy] = useState(null)
-  const [sortDirection, setSortDirection] = useState('asc')
+  const [sortBy, setSortBy] = useState(defaultSortBy || null)
+  const [sortDirection, setSortDirection] = useState(defaultSortDirection)
   const [expandedRows, setExpandedRows] = useState(new Set())
 
   const toggleRow = (idx) => {
@@ -102,34 +102,36 @@ function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, actio
             color: 'var(--text-primary)',
             letterSpacing: '-0.02em',
           }}>
-            {title}
-          </h1>
-          {lastUpdatedMap && (
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
-              {Object.entries(lastUpdatedMap).map(([key, value]) => (
-                <span key={key} style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.7rem',
-                  color: 'var(--text-muted)',
-                  fontWeight: 500,
-                }}>
-                  {key}: {formatDate(value) || '-'}
-                </span>
-              ))}
-            </div>
-          )}
+          {title}
+        </h1>
+        {!hideTimestamps && lastUpdatedMap && (
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+            {Object.entries(lastUpdatedMap).map(([key, value]) => (
+              <span key={key} style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '0.7rem',
+                color: 'var(--text-muted)',
+                fontWeight: 500,
+              }}>
+                {key}: {formatDate(value) || '-'}
+              </span>
+            ))}
+          </div>
+        )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           {filterComponent}
-          {action}
-          <span style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '0.875rem',
-            color: 'var(--text-muted)',
-            fontWeight: 500,
-          }}>
-            {total.toLocaleString('pt-BR')} registros
-          </span>
+          {!hideUpdate && action}
+          {!hideCount && (
+            <span style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '0.875rem',
+              color: 'var(--text-muted)',
+              fontWeight: 500,
+            }}>
+              {total.toLocaleString('pt-BR')} registros
+            </span>
+          )}
         </div>
       </div>
 
