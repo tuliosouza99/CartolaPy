@@ -1,256 +1,167 @@
 # AGENTS.md
 
-## Project Overview
-
-CartolaPy is a Streamlit application for visualization and analysis of data extracted from the official Cartola FC API (Brazilian football/soccer fantasy app). The project uses Python with async/await patterns, pandas, numpy, and plotly for data visualization.
+CartolaPy is a full-stack app for visualizing/analysis of Cartola FC API data. Backend: FastAPI + Redis + taskiq. Frontend: React + Vite.
 
 ## Project Structure
-
 ```
-CartolaPy/
-├── backend/
-│   ├── __init__.py
-│   ├── main.py               # FastAPI entry point
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── routes.py         # REST API endpoints
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── config.py         # Settings and constants
-│   │   ├── scheduler.py      # APScheduler job definitions
-│   │   └── lifespan.py       # Startup/shutdown handlers
-│   ├── services/
-│   │   ├── __init__.py
-│   │   └── updater.py        # Unified data update service
-│   ├── src/                  # Data logic (moved from original src/)
-│   │   ├── enums.py
-│   │   ├── utils.py
-│   │   ├── atletas_updater.py
-│   │   ├── confrontos_or_mandos_updater.py
-│   │   ├── pontos_cedidos_updater.py
-│   │   ├── pontuacoes_updater.py
-│   │   └── pre_season/
-│   │       ├── dfs_creator.py
-│   │       └── dicts_creator.py
-│   └── data/                  # Persisted data files
-├── frontend/
-│   ├── __init__.py
-│   └── streamlit_app.py      # Thin Streamlit client (HTTP calls only)
-├── CartolaPy.py               # Original monolithic app (deprecated)
-├── plotter.py                 # Plotting functions (shared)
-├── data/                      # Runtime data (gitignored)
-├── tests/                     # Test files
-└── pyproject.toml            # Project configuration
+backend/
+├── main.py              # FastAPI app factory (get_app())
+├── lifespan.py          # Startup/shutdown handlers
+├── dependencies.py      # FastAPI DI
+├── tkq.py               # Taskiq broker
+├── tkq_sched.py         # Taskiq scheduler
+├── tasks.py             # Background tasks
+├── api/
+│   ├── routes.py        # REST endpoints
+│   └── models.py        # Pydantic models
+└── services/
+    ├── atletas_unified.py
+    ├── enums.py         # Scout enum, data paths
+    ├── redis_store.py
+    ├── request_handler.py
+    └── data_loaders/    # Data loading from Redis
+
+frontend/
+├── src/
+│   ├── App.jsx          # Main app with routing
+│   ├── pages/           # Page components
+│   └── components/      # Reusable components
+├── package.json
+└── vite.config.js
+
+tests/                   # Pytest suite
+├── conftest.py          # Shared fixtures
+├── test_api_routes.py
+└── ... (other test files)
 ```
 
 ## Build/Lint/Test Commands
 
-### Environment Setup
+### Environment
 ```bash
-# Create conda environment (as specified in README)
-conda create -n cartolapy python=3.10
-conda activate cartolapy
-pip install -r requirements.txt
-
-# Or using the existing venv
-source .venv/bin/activate
+uv sync && source .venv/bin/activate  # or: source .venv/bin/activate
 ```
 
-### Linting and Formatting
+### Python
 ```bash
-# Run ruff linter
-ruff check .
+ruff check .                    # lint
+ruff format --check .           # check formatting
+ruff check --fix . && ruff format .  # auto-fix
 
-# Run ruff formatter (check only)
-ruff format --check .
-
-# Auto-fix and format
-ruff check --fix .
-ruff format .
+pytest                          # run all tests
+pytest tests/test_api_routes.py # single file
+pytest -k "pattern"             # matching pattern
+pytest -v                       # verbose
+pytest --cov=backend            # with coverage
 ```
 
-### Running the Application
+### Frontend
 ```bash
-# Start the backend (FastAPI server on port 8000)
-cd backend && uvicorn main:app --reload --port 8000
-
-# In a separate terminal, start the frontend (Streamlit on port 8501)
-streamlit run frontend/streamlit_app.py
-
-# Or run both with concurrent processes
-cd backend && uvicorn main:app --port 8000 &
-streamlit run frontend/streamlit_app.py
+cd frontend
+npm install
+npm run dev      # dev server (port 5173)
+npm run build    # production build
 ```
 
-### Testing
+### Running
 ```bash
-# Run all tests
-pytest
-
-# Run a single test file
-pytest tests/test_file.py
-
-# Run tests matching a pattern
-pytest -k "test_pattern"
-
-# Run with verbose output
-pytest -v
-
-# Run with coverage (if added)
-pytest --cov=src --cov-report=html
+docker-compose up -d redis     # start Redis
+cd backend && uvicorn main:app --reload --port 8000  # backend
+cd frontend && npm run dev    # frontend (separate terminal)
 ```
 
-## Code Style Guidelines
+## Code Style
 
-### Import Organization
-Organize imports in three groups with blank lines between:
-1. Standard library imports
-2. Third-party imports (aiohttp, pandas, numpy, etc.)
-3. Local/application imports
-
+### Python Imports (3 groups, blank line between)
 ```python
-# Standard library
-import json
-import asyncio
-from collections.abc import Mapping
-from typing import Iterable
+from datetime import datetime, timezone
+from typing import Annotated, Literal
 
-# Third-party
-import aiohttp
-import aiofiles
-import numpy as np
 import pandas as pd
-from aiolimiter import AsyncLimiter
-from stqdm import stqdm
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-# Local imports
-from src.enums import Scout, DataPath
-from src.utils import get_page_json
+from backend.services.atletas_unified import compute_atletas_unified
 ```
 
 ### Type Hints
-- Use type hints for function parameters and return types
-- Use `|` for union types (Python 3.10+): `dict[int, str]`
-- Use `None` instead of `Optional[T]` for optional parameters
-- Use `tuple` for fixed-length tuples
+- Use `|` for unions: `dict[int, str]`, `str | None`
+- Use `Annotated` for FastAPI DI
+- Use `Literal` for exhaustive string unions
 
-```python
-# Good
-async def get_page_json(url: str) -> dict:
-def load_dict(name: str) -> dict[int, str]:
-def create_df(atletas: pd.DataFrame) -> pd.DataFrame:
+### Naming
+- **Classes**: `PascalCase` (DataLoader, Scout)
+- **Functions/methods**: `snake_case` (get_atletas, compute_atletas_unified)
+- **Variables**: `snake_case` (atletas_df, paginated_df)
+- **Constants**: `SCREAMING_SNAKE_CASE` or lowercase
 
-# Union types
-def get_basic_points(scouts: dict | float | None):
-def update_table(self, rodadas: int | Iterable[int]):
-```
-
-### Naming Conventions
-- **Classes**: `PascalCase` (e.g., `Scout`, `ConfrontosOrMandosUpdater`)
-- **Functions/methods**: `snake_case` (e.g., `get_page_json`, `load_dict_async`)
-- **Variables**: `snake_case` (e.g., `pontuacoes_df`, `clube_id`)
-- **Constants**: `SCREAMING_SNAKE_CASE` or descriptive lowercase (e.g., `PRECO_MIN`, `rate_limiter`)
-- **Enums**: `PascalCase` for enum names, `SCREAMING_SNAKE_CASE` for values by convention
-- **Avoid single-letter variable names** except in comprehensions or well-known contexts
-
-### Enum Usage
-```python
-class Scout(Enum):
-    G = {'name': 'Gol', 'value': 8}
-    A = {'name': 'Assistência', 'value': 5}
-    # ... other scouts
-
-    @classmethod
-    def as_basic_scouts_list(cls):
-        return [
-            scout.name
-            for scout in cls
-            if scout.name not in ('G', 'A', 'FT', 'PP', 'DP', 'SG', 'CV', 'GC')
-        ]
-
-class DataPath(Enum):
-    ATLETAS = 'data/csv/atletas.csv'
-    # ... other paths
-
-    @classmethod
-    def as_list(cls):
-        return [path.value for path in cls]
-```
-
-### Async/Await Patterns
-- Use `async/await` for I/O-bound operations (API calls, file operations)
-- Use `asyncio.gather()` for concurrent operations
-- Use `asyncio.to_thread()` for CPU-bound operations in async context
-- Use `aiofiles` for async file operations
-
+### Async/Await
 ```python
 async def update_atletas():
-    json = await get_page_json('https://api.cartola.globo.com/atletas/mercado')
-    # ...
+    await data_loader.atletas.fill_atletas()
+    data_loader.atletas.save_to_redis(store)
 
-async def update_tables(rodada: list[int] | int):
-    await asyncio.gather(
-        create_dicts(),
-        update_atletas(),
-        # ...
+async def fetch_partidas_from_cartola(request_handler, rodada: int) -> list[dict]:
+    page_json = await request_handler.make_get_request(
+        f"https://api.cartola.globo.com/partidas/{rodada}"
     )
 ```
 
 ### Error Handling
-- Use specific exception types when catching
-- Handle None and NaN values explicitly
-- Use `np.isnan()` for numpy floats, `isinstance(x, Mapping)` for dict-like objects
+- Raise `HTTPException` for API errors
+- Use specific exception types
+- Handle None/NaN explicitly: `pd.notna()`, `isinstance()`
 
 ```python
-def get_basic_points(scouts: dict | float | None):
-    if not isinstance(scouts, Mapping) and (scouts is None or np.isnan(scouts)):
-        return np.nan
-    # ...
+if sort_by is not None:
+    if sort_by not in df.columns:
+        raise HTTPException(status_code=422, detail=f"Invalid sort_by: {sort_by}")
 ```
 
-### Data Processing with Pandas
-- Method chaining with `.pipe()` for readable transformations
-- Use `.assign()` for adding columns
-- Use `df.loc[]` and `df.iloc[]` for conditional updates
-- Use `stqdm` for progress bars in async loops
-
+### Pandas
 ```python
 df = (
-    pd.DataFrame(json['atletas'])
-    .sort_values(by=['atleta_id'])
-    .reset_index(drop=True)
-    .pipe(some_function, arg1, arg2)
+    atletas_df.sort_values("rodada_id", ascending=False)
+    .drop_duplicates(subset=["atleta_id"], keep="first")
+    .merge(pont_agg, on="atleta_id", how="left")
 )
-
-# Async with progress
-await asyncio.gather(
-    *[update_function(rodada) for rodada in stqdm(range(1, 38), desc='Updating...')]
-)
+offset = (page - 1) * page_size
+paginated_df = df.iloc[offset : offset + page_size]
 ```
 
-### Streamlit Usage
-- Use `st.cache_resource` for expensive computations that don't change per-user
-- Use containers and expanders for organization
-- Use sidebar for controls
+### React/Frontend
+- Functional components with hooks
+- React Context for global state (theme)
+- CSS variables in `index.css` for theming
+- Use `data-theme` attribute for dark/light mode
+
+```jsx
+import { useState, useEffect } from 'react'
+
+function App() {
+  const [theme, setTheme] = useState('dark')
+  // ...
+}
+```
+
+## Testing
+- `pytest` with `pytest-asyncio` for async
+- `conftest.py` fixtures: `anyio_backend`, `fastapi_app`, `init_taskiq_deps`
+- Use `unittest.mock.AsyncMock` and `MagicMock`
+- Use `fastapi.testclient.TestClient` for API testing
 
 ```python
-@st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
-def plot_atletas_geral(atletas_df: pd.DataFrame, ...):
-    # cached function
-    ...
+@pytest.fixture
+def fastapi_app():
+    from backend.main import get_app
+    return get_app()
+
+def test_atletas_returns_correct_structure(client):
+    response = client.get("/api/tables/atletas")
+    assert response.status_code == 200
 ```
 
-## Current Linting Issues
-
-Running `ruff check .` produces pre-existing errors in original code:
-- **F821**: Undefined name `empty_df` in `backend/src/pre_season/dfs_creator.py` (lines 31, 33, 35, 49, 51)
-- **F821**: Undefined names `row_pontuacoes` and `row_scouts` in `backend/src/utils.py` (lines 59-75)
-
-These are bugs in the original code that were present before refactoring.
-
-## Development Notes
-
-- The project uses `uv.lock` suggesting `uv` for dependency management
-- Data files are stored in `data/` directory (gitignored)
-- Uses Brazilian Portuguese in some comments and UI strings
-- API calls are rate-limited with `AsyncLimiter(10, 1)` (10 requests per second)
+## Notes
+- **Redis**: Required; use `docker-compose up -d redis`
+- **Taskiq**: Async task queue for background jobs
+- **Rate Limiting**: ~10 req/sec via `AsyncLimiter`
+- **Environment**: Tests run with `ENVIRONMENT=pytest`

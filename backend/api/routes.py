@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from ..dependencies import get_data_loader, get_redis_store
 from ..services import DataLoader
 from ..services.atletas_unified import compute_atletas_unified
+from ..services.pontos_cedidos_unified import compute_pontos_cedidos_unified
 from ..services.redis_store import RedisDataFrameStore
 from .models import (
     IsMandante,
@@ -157,7 +158,7 @@ async def get_table_status(
         confrontos=store.load_last_updated("confrontos"),
         pontuacoes=store.load_last_updated("pontuacoes"),
         pontos_cedidos=store.load_last_updated("pontos_cedidos"),
-        rodada_atual=data_loader.atletas.rodada_id or 1,
+        rodada_atual=store.load_rodada_id() or 1,
     )
 
 
@@ -216,7 +217,10 @@ async def get_filter_options(
     )
 
     posicoes_list = (
-        [{"id": v["id"], "nome": v["nome"]} for v in posicoes_cache.values()]
+        [
+            {"id": v["id"], "nome": v["nome"], "abreviacao": v.get("abreviacao", "")}
+            for v in posicoes_cache.values()
+        ]
         if posicoes_cache
         else []
     )
@@ -270,7 +274,7 @@ async def get_atletas_unified(
     preco_min: int | None = Query(default=None),
     preco_max: int | None = Query(default=None),
 ):
-    rodada_atual = data_loader.atletas.rodada_id or 1
+    rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
         rodada_max = rodada_atual
 
@@ -361,13 +365,72 @@ async def get_atletas_unified(
     )
 
 
+@router.get("/tables/pontos-cedidos-unified", response_model=TableResponse)
+async def get_pontos_cedidos_unified(
+    request: Request,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1),
+    sort_by: str | None = None,
+    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    rodada_min: int = Query(default=1, ge=1),
+    rodada_max: int | None = None,
+    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+    posicao_id: int = Query(default=1, ge=1),
+):
+    rodada_atual = store.load_rodada_id() or 1
+    if rodada_max is None:
+        rodada_max = rodada_atual
+
+    df = compute_pontos_cedidos_unified(
+        pontos_cedidos_df=data_loader.pontos_cedidos.df,
+        rodada_min=rodada_min,
+        rodada_max=rodada_max,
+        is_mandante=is_mandante,
+        posicao_id=posicao_id,
+    )
+
+    output_cols = [
+        "clube_id",
+        "media_cedida",
+        "media_cedida_basica",
+        "total_jogos",
+        "scouts",
+    ]
+
+    df = df.loc[:, [c for c in output_cols if c in df.columns]]
+
+    if sort_by is not None:
+        if sort_by not in df.columns:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            )
+        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
+
+    total = len(df)
+    offset = (page - 1) * page_size
+    paginated_df = df.iloc[offset : offset + page_size]
+
+    data = paginated_df.to_dict(orient="records")
+
+    return TableResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        data=data,
+        sort_by=sort_by,
+        sort_direction=sort_direction.value if sort_direction else None,
+    )
+
+
 @router.get("/proximo-jogo/{clube_id}", response_model=ProximoJogoResponse)
 async def get_proximo_jogo(
     clube_id: int,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
-    rodada_atual = data_loader.atletas.rodada_id or 1
+    rodada_atual = store.load_rodada_id() or 1
     next_rodada = rodada_atual + 1
     cache_key = f"partidas:{next_rodada}"
 

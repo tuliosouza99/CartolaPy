@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 
-function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, action, expandable, expandedContent, filterComponent, extraParams, hideCount, hideUpdate, hideTimestamps, defaultSortBy, defaultSortDirection = 'asc' }) {
+function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, action, expandable, expandedContent, filterComponent, extraParams, hideCount, hideUpdate, hideTimestamps, defaultSortBy, defaultSortDirection = 'asc', sortBy: controlledSortBy, sortDirection: controlledSortDirection, onSortChange }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [pageSize] = useState(20)
-  const [sortBy, setSortBy] = useState(defaultSortBy || null)
-  const [sortDirection, setSortDirection] = useState(defaultSortDirection)
+  const [internalSortBy, setInternalSortBy] = useState(defaultSortBy || null)
+  const [internalSortDirection, setInternalSortDirection] = useState(defaultSortDirection)
   const [expandedRows, setExpandedRows] = useState(new Set())
+
+  const sortBy = controlledSortBy !== undefined ? controlledSortBy : internalSortBy
+  const sortDirection = controlledSortDirection !== undefined ? controlledSortDirection : internalSortDirection
 
   const toggleRow = (idx) => {
     setExpandedRows(prev => {
@@ -59,11 +62,20 @@ function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, actio
   }, [fetchData])
 
   const handleSort = (column) => {
+    let newDirection
+    let newSortBy
     if (sortBy === column) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+      newDirection = sortDirection === 'asc' ? 'desc' : 'asc'
+      newSortBy = column
     } else {
-      setSortBy(column)
-      setSortDirection('asc')
+      newDirection = 'asc'
+      newSortBy = column
+    }
+    if (controlledSortBy !== undefined) {
+      onSortChange?.(newSortBy, newDirection)
+    } else {
+      setInternalSortBy(newSortBy)
+      setInternalSortDirection(newDirection)
     }
     setPage(1)
   }

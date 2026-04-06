@@ -138,3 +138,34 @@ class TestPontosCedidos:
         pontos_cedidos.fill_pontos_cedidos(sample_pontuacoes_df, empty_confrontos)
 
         assert pontos_cedidos.df.empty
+
+    def test_fill_pontos_cedidos_computes_mean_not_sum(self, pontos_cedidos):
+        pontuacoes = pd.DataFrame(
+            {
+                "atleta_id": [1, 2, 3],
+                "posicao_id": [1, 1, 1],
+                "clube_id": [282, 282, 282],
+                "rodada_id": [1, 1, 1],
+                "pontuacao": [4.0, 6.0, 10.0],
+                "pontuacao_basica": [3.0, 5.0, 8.0],
+                **{
+                    scout: [1 if scout == "G" else 0 for _ in range(3)]
+                    for scout in Scout.as_list()
+                },
+            }
+        )
+        confrontos = pd.DataFrame(
+            {
+                "clube_id": [256],
+                "opponent_clube_id": [282],
+                "is_mandante": [True],
+                "rodada_id": [1],
+            }
+        )
+
+        pontos_cedidos.fill_pontos_cedidos(pontuacoes, confrontos)
+
+        result = pontos_cedidos.df[pontos_cedidos.df["clube_id"] == 256].iloc[0]
+        expected_mean = (4.0 + 6.0 + 10.0) / 3
+        assert abs(result["pontuacao"] - expected_mean) < 0.01
+        assert abs(result["G"] - 1.0) < 0.01

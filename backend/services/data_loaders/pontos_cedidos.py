@@ -36,7 +36,7 @@ class PontosCedidos:
         pontuacoes_agg = pontuacoes_df.groupby(
             ["clube_id", "posicao_id", "rodada_id"], as_index=False
         ).agg(
-            {col: "sum" for col in ["pontuacao", "pontuacao_basica", *Scout.as_list()]}
+            {col: "mean" for col in ["pontuacao", "pontuacao_basica", *Scout.as_list()]}
         )
 
         positions_df = pontuacoes_df.loc[:, ["posicao_id"]].drop_duplicates()
