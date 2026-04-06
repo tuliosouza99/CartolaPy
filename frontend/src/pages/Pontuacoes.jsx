@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import TableView from '../components/TableView'
 
 const columns = [
@@ -29,7 +29,7 @@ const columns = [
 ]
 
 function Pontuacoes() {
-  const [lastUpdated, setLastUpdated] = useState(null)
+  const [statusData, setStatusData] = useState(null)
 
   useEffect(() => {
     fetchStatus()
@@ -40,19 +40,24 @@ function Pontuacoes() {
       const res = await fetch('/api/tables/status')
       if (res.ok) {
         const data = await res.json()
-        setLastUpdated(data.pontuacoes)
+        setStatusData(data)
       }
     } catch (err) {
       console.error('Failed to fetch status:', err)
     }
   }
 
+  const lastUpdatedMap = useMemo(() => {
+    if (!statusData) return {}
+    return { pontuacoes: statusData.pontuacoes }
+  }, [statusData])
+
   return (
     <TableView 
       title="Pontuações" 
       endpoint="pontuacoes" 
       columns={columns} 
-      lastUpdated={lastUpdated}
+      lastUpdatedMap={lastUpdatedMap}
     />
   )
 }

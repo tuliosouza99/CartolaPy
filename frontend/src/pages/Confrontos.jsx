@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import TableView from '../components/TableView'
 
 const columns = [
@@ -16,7 +16,7 @@ const columns = [
 ]
 
 function Confrontos() {
-  const [lastUpdated, setLastUpdated] = useState(null)
+  const [statusData, setStatusData] = useState(null)
 
   useEffect(() => {
     fetchStatus()
@@ -27,19 +27,24 @@ function Confrontos() {
       const res = await fetch('/api/tables/status')
       if (res.ok) {
         const data = await res.json()
-        setLastUpdated(data.confrontos)
+        setStatusData(data)
       }
     } catch (err) {
       console.error('Failed to fetch status:', err)
     }
   }
 
+  const lastUpdatedMap = useMemo(() => {
+    if (!statusData) return {}
+    return { confrontos: statusData.confrontos }
+  }, [statusData])
+
   return (
     <TableView 
       title="Confrontos" 
       endpoint="confrontos" 
       columns={columns} 
-      lastUpdated={lastUpdated}
+      lastUpdatedMap={lastUpdatedMap}
     />
   )
 }

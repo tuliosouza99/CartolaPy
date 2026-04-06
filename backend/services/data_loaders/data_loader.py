@@ -16,6 +16,14 @@ class DataLoader:
         self.pontuacoes = Pontuacoes(self.request_handler)
         self.pontos_cedidos = PontosCedidos()
 
+    @property
+    def request_handler(self):
+        return self._request_handler
+
+    @request_handler.setter
+    def request_handler(self, value):
+        self._request_handler = value
+
     async def fill_data(self):
         await self.atletas.fill_atletas()
         if self.atletas.rodada_id is None:

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 
-function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }) {
+function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, action, expandable, expandedContent, filterComponent, extraParams }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -9,6 +9,19 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
   const [pageSize] = useState(20)
   const [sortBy, setSortBy] = useState(null)
   const [sortDirection, setSortDirection] = useState('asc')
+  const [expandedRows, setExpandedRows] = useState(new Set())
+
+  const toggleRow = (idx) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(idx)) {
+        next.delete(idx)
+      } else {
+        next.add(idx)
+      }
+      return next
+    })
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -22,6 +35,13 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
         params.append('sort_by', sortBy)
         params.append('sort_direction', sortDirection)
       }
+      if (extraParams) {
+        Object.entries(extraParams).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            params.append(key, String(value))
+          }
+        })
+      }
       const res = await fetch(`/api/tables/${endpoint}?${params}`)
       if (!res.ok) throw new Error('Failed to fetch data')
       const json = await res.json()
@@ -32,7 +52,7 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
     } finally {
       setLoading(false)
     }
-  }, [endpoint, page, pageSize, sortBy, sortDirection])
+  }, [endpoint, page, pageSize, sortBy, sortDirection, extraParams])
 
   useEffect(() => {
     fetchData()
@@ -84,20 +104,23 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
           }}>
             {title}
           </h1>
-          {lastUpdated && (
-            <span style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.75rem',
-              color: 'var(--text-muted)',
-              fontWeight: 500,
-              display: 'block',
-              marginTop: '0.25rem',
-            }}>
-              Atualizado em: {formatDate(lastUpdated)}
-            </span>
+          {lastUpdatedMap && (
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+              {Object.entries(lastUpdatedMap).map(([key, value]) => (
+                <span key={key} style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '0.7rem',
+                  color: 'var(--text-muted)',
+                  fontWeight: 500,
+                }}>
+                  {key}: {formatDate(value) || '-'}
+                </span>
+              ))}
+            </div>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          {filterComponent}
           {action}
           <span style={{
             fontFamily: 'var(--font-display)',
@@ -126,6 +149,13 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
           }}>
             <thead>
               <tr style={{ background: 'var(--bg-secondary)' }}>
+                {expandable && (
+                  <th style={{
+                    padding: '0.875rem 1rem',
+                    borderBottom: '1px solid var(--border)',
+                    width: '3rem',
+                  }} />
+                )}
                 {columns.map(col => (
                   <th
                     key={col.key}
@@ -158,7 +188,7 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={columns.length} style={{
+                  <td colSpan={columns.length + (expandable ? 1 : 0)} style={{
                     padding: '3rem',
                     textAlign: 'center',
                     color: 'var(--text-muted)',
@@ -182,7 +212,7 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={columns.length} style={{
+                  <td colSpan={columns.length + (expandable ? 1 : 0)} style={{
                     padding: '3rem',
                     textAlign: 'center',
                     color: '#EF4444',
@@ -206,7 +236,7 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
                 </tr>
               ) : data.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length} style={{
+                  <td colSpan={columns.length + (expandable ? 1 : 0)} style={{
                     padding: '3rem',
                     textAlign: 'center',
                     color: 'var(--text-muted)',
@@ -216,32 +246,65 @@ function TableView({ title, endpoint, columns, lastUpdated, renderCell, action }
                 </tr>
               ) : (
                 data.map((row, idx) => (
-                  <tr
-                    key={idx}
-                    style={{
-                      background: idx % 2 === 0 ? 'transparent' : 'var(--bg-secondary)',
-                      transition: 'background-color var(--transition)',
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background = 'rgba(249, 115, 22, 0.05)'
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = idx % 2 === 0 ? 'transparent' : 'var(--bg-secondary)'
-                    }}
-                  >
-                    {columns.map(col => (
-                      <td
-                        key={col.key}
-                        style={{
+                  <Fragment key={idx}>
+                    <tr
+                      style={{
+                        background: idx % 2 === 0 ? 'transparent' : 'var(--bg-secondary)',
+                        transition: 'background-color var(--transition)',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(249, 115, 22, 0.05)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = idx % 2 === 0 ? 'transparent' : 'var(--bg-secondary)'
+                      }}
+                    >
+                      {expandable && (
+                        <td style={{
                           padding: '0.75rem 1rem',
                           borderBottom: '1px solid var(--border)',
-                          color: 'var(--text-primary)',
-                        }}
-                      >
-                        {renderCell ? renderCell(row, col.key) : row[col.key]}
-                      </td>
-                    ))}
-                  </tr>
+                        }}>
+                          <button
+                            onClick={() => toggleRow(idx)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '0.25rem',
+                              color: 'var(--text-muted)',
+                              transition: 'transform 0.2s',
+                              transform: expandedRows.has(idx) ? 'rotate(90deg)' : 'rotate(0deg)',
+                            }}
+                          >
+                            ▶
+                          </button>
+                        </td>
+                      )}
+                      {columns.map(col => (
+                        <td
+                          key={col.key}
+                          style={{
+                            padding: '0.75rem 1rem',
+                            borderBottom: '1px solid var(--border)',
+                            color: 'var(--text-primary)',
+                          }}
+                        >
+                          {col.renderCell ? col.renderCell(row) : (renderCell ? renderCell(row, col.key) : row[col.key])}
+                        </td>
+                      ))}
+                    </tr>
+                    {expandable && expandedRows.has(idx) && (
+                      <tr>
+                        <td colSpan={columns.length + 1} style={{
+                          padding: '0',
+                          borderBottom: '1px solid var(--border)',
+                          background: 'var(--bg-secondary)',
+                        }}>
+                          {expandedContent && expandedContent(row)}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))
               )}
             </tbody>

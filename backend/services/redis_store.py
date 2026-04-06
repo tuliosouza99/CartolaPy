@@ -83,3 +83,15 @@ class RedisDataFrameStore:
             "pontos_cedidos",
         ]
         return any(self.exists(k) for k in keys)
+
+    def save_json(self, key: str, data: Any) -> None:
+        serialized = json.dumps(data, default=str)
+        self.redis.set(self._key(key), serialized.encode())
+
+    def load_json(self, key: str) -> Any | None:
+        data = self.redis.get(self._key(key))
+        if data is None:
+            return None
+        if isinstance(data, bytes):
+            data = data.decode()
+        return json.loads(data)

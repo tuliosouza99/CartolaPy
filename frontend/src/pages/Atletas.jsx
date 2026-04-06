@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import TableView from '../components/TableView'
 import UpdateButton from '../components/UpdateButton'
 
@@ -20,7 +20,7 @@ const columns = [
 ]
 
 function Atletas() {
-  const [lastUpdated, setLastUpdated] = useState(null)
+  const [statusData, setStatusData] = useState(null)
 
   useEffect(() => {
     fetchStatus()
@@ -31,19 +31,24 @@ function Atletas() {
       const res = await fetch('/api/tables/status')
       if (res.ok) {
         const data = await res.json()
-        setLastUpdated(data.atletas)
+        setStatusData(data)
       }
     } catch (err) {
       console.error('Failed to fetch status:', err)
     }
   }
 
+  const lastUpdatedMap = useMemo(() => {
+    if (!statusData) return {}
+    return { atletas: statusData.atletas }
+  }, [statusData])
+
   return (
     <TableView 
       title="Atletas" 
       endpoint="atletas" 
       columns={columns} 
-      lastUpdated={lastUpdated}
+      lastUpdatedMap={lastUpdatedMap}
       action={<UpdateButton onSuccess={fetchStatus} />}
     />
   )

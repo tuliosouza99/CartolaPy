@@ -12,6 +12,12 @@ class SortDirection(str, Enum):
     DESC = "desc"
 
 
+class IsMandante(str, Enum):
+    GERAL = "geral"
+    MANDANTE = "mandante"
+    VISITANTE = "visitante"
+
+
 class PaginationParams(BaseModel):
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=1000)
@@ -48,9 +54,18 @@ class TableStatus(BaseModel):
     confrontos: datetime | None = None
     pontuacoes: datetime | None = None
     pontos_cedidos: datetime | None = None
+    rodada_atual: int = 1
 
 
 class UpdateResponse(BaseModel):
     success: bool
     message: str
     updated_at: datetime | None = None
+
+
+class ProximoJogoResponse(BaseModel):
+    mandante_escudo: str
+    visitante_escudo: str
+    mandante_id: int
+    visitante_id: int
+    rodada: int

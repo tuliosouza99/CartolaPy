@@ -23,6 +23,9 @@ class Atletas:
         self._df = pd.DataFrame(columns=self.columns)
         self._rodada_id: int | None = None
         self._last_updated: datetime | None = None
+        self._clubes: dict | None = None
+        self._posicoes: dict | None = None
+        self._status: dict | None = None
 
     @property
     def rodada_id(self):
@@ -42,12 +45,21 @@ class Atletas:
         )
         self._rodada_id = page_json["atletas"][0]["rodada_id"]
         self._df = pd.DataFrame(page_json["atletas"]).loc[:, self.columns]
+        self._clubes = page_json.get("clubes", {})
+        self._posicoes = page_json.get("posicoes", {})
+        self._status = page_json.get("status", {})
         self._last_updated = datetime.now(timezone.utc)
 
     def save_to_redis(self, store: RedisDataFrameStore) -> None:
         store.save_dataframe(self.REDIS_KEY, self._df)
         store.save_rodada_id(self._rodada_id)
         store.save_last_updated(self.REDIS_KEY, self._last_updated)
+        if self._clubes:
+            store.save_json("clubes", self._clubes)
+        if self._posicoes:
+            store.save_json("posicoes", self._posicoes)
+        if self._status:
+            store.save_json("status", self._status)
 
     @classmethod
     def load_from_redis(cls, store: RedisDataFrameStore) -> "Atletas | None":
@@ -68,4 +80,7 @@ class Atletas:
         atletas._df = df
         atletas._rodada_id = store.load_rodada_id()
         atletas._last_updated = store.load_last_updated(cls.REDIS_KEY)
+        atletas._clubes = store.load_json("clubes")
+        atletas._posicoes = store.load_json("posicoes")
+        atletas._status = store.load_json("status")
         return atletas

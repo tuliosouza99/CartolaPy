@@ -3,6 +3,7 @@ import ThemeToggle from './ThemeToggle'
 
 const navItems = [
   { path: '/atletas', label: 'Atletas' },
+  { path: '/atletas-unified', label: 'Atletas Unificado' },
   { path: '/pontuacoes', label: 'Pontuações' },
   { path: '/confrontos', label: 'Confrontos' },
   { path: '/pontos-cedidos', label: 'Pontos Cedidos' },

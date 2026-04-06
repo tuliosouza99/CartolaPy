@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Atletas from './pages/Atletas'
+import AtletasUnified from './pages/AtletasUnified'
 import Pontuacoes from './pages/Pontuacoes'
 import Confrontos from './pages/Confrontos'
 import PontosCedidos from './pages/PontosCedidos'
@@ -42,6 +43,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/atletas" replace />} />
             <Route path="/atletas" element={<Atletas />} />
+            <Route path="/atletas-unified" element={<AtletasUnified />} />
             <Route path="/pontuacoes" element={<Pontuacoes />} />
             <Route path="/confrontos" element={<Confrontos />} />
             <Route path="/pontos-cedidos" element={<PontosCedidos />} />

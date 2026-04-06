@@ -1,11 +1,20 @@
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from ..dependencies import get_data_loader, get_redis_store
 from ..services import DataLoader
+from ..services.atletas_unified import compute_atletas_unified
 from ..services.redis_store import RedisDataFrameStore
-from .models import SortDirection, TableResponse, TableStatus, UpdateResponse
+from .models import (
+    IsMandante,
+    SortDirection,
+    TableResponse,
+    TableStatus,
+    UpdateResponse,
+    ProximoJogoResponse,
+)
 
 router = APIRouter()
 
@@ -140,6 +149,7 @@ async def get_pontos_cedidos(
 
 @router.get("/tables/status", response_model=TableStatus)
 async def get_table_status(
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
     return TableStatus(
@@ -147,7 +157,50 @@ async def get_table_status(
         confrontos=store.load_last_updated("confrontos"),
         pontuacoes=store.load_last_updated("pontuacoes"),
         pontos_cedidos=store.load_last_updated("pontos_cedidos"),
+        rodada_atual=data_loader.atletas.rodada_id or 1,
     )
+
+
+async def fetch_partidas_from_cartola(request_handler, rodada: int) -> list[dict]:
+    page_json = await request_handler.make_get_request(
+        f"https://api.cartola.globo.com/partidas/{rodada}"
+    )
+
+    clubes = page_json.get("clubes", {})
+
+    return [
+        {
+            "mandante_id": p["clube_casa_id"],
+            "visitante_id": p["clube_visitante_id"],
+            "mandante_escudo": clubes.get(str(p["clube_casa_id"]), {})
+            .get("escudos", {})
+            .get("60x60", ""),
+            "visitante_escudo": clubes.get(str(p["clube_visitante_id"]), {})
+            .get("escudos", {})
+            .get("60x60", ""),
+        }
+        for p in page_json.get("partidas", [])
+        if p.get("valida", False)
+    ]
+
+
+@router.get("/partidas/{rodada}", response_model=list[dict])
+async def get_partidas(
+    rodada: int,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+):
+    cache_key = f"partidas:{rodada}"
+    cached = store.load_json(cache_key)
+
+    if cached:
+        return cached
+
+    partidas = await fetch_partidas_from_cartola(data_loader.request_handler, rodada)
+    store.save_json(cache_key, partidas)
+    store.save_last_updated(cache_key, datetime.now(timezone.utc))
+
+    return partidas
 
 
 @router.post("/update/atletas", response_model=UpdateResponse)
@@ -165,3 +218,139 @@ async def update_atletas(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tables/atletas-unified", response_model=TableResponse)
+async def get_atletas_unified(
+    request: Request,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1),
+    sort_by: str | None = None,
+    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    rodada_min: int = Query(default=1, ge=1),
+    rodada_max: int | None = None,
+    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+):
+    rodada_atual = data_loader.atletas.rodada_id or 1
+    if rodada_max is None:
+        rodada_max = rodada_atual
+
+    clubes_cache = store.load_json("clubes")
+    posicoes_cache = store.load_json("posicoes")
+    status_cache = store.load_json("status")
+
+    next_rodada = rodada_atual + 1
+    proximo_jogo_cache = store.load_json(f"partidas:{next_rodada}")
+
+    if not proximo_jogo_cache:
+        proximo_jogo_cache = await fetch_partidas_from_cartola(
+            data_loader.request_handler, next_rodada
+        )
+        store.save_json(f"partidas:{next_rodada}", proximo_jogo_cache)
+        store.save_last_updated(f"partidas:{next_rodada}", datetime.now(timezone.utc))
+
+    df = compute_atletas_unified(
+        atletas_df=data_loader.atletas.df,
+        pontuacoes_df=data_loader.pontuacoes.df,
+        confrontos_df=data_loader.confrontos.df,
+        rodada_min=rodada_min,
+        rodada_max=rodada_max,
+        is_mandante=is_mandante,
+        rodada_atual=rodada_atual,
+        clubes_cache=clubes_cache,
+        posicoes_cache=posicoes_cache,
+        status_cache=status_cache,
+        proximo_jogo_cache=proximo_jogo_cache,
+    )
+
+    output_cols = [
+        "atleta_id",
+        "apelido",
+        "clube_id",
+        "clube_escudo",
+        "posicao_id",
+        "posicao_abreviacao",
+        "status_id",
+        "status_nome",
+        "status_cor",
+        "preco",
+        "media",
+        "media_basica",
+        "total_jogos",
+        "scouts",
+        "proximo_jogo",
+    ]
+
+    df = df.loc[:, [c for c in output_cols if c in df.columns]]
+
+    if sort_by is not None:
+        if sort_by not in df.columns:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            )
+        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
+
+    total = len(df)
+    offset = (page - 1) * page_size
+    paginated_df = df.iloc[offset : offset + page_size]
+
+    data = paginated_df.to_dict(orient="records")
+
+    return TableResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        data=data,
+        sort_by=sort_by,
+        sort_direction=sort_direction.value if sort_direction else None,
+    )
+
+
+@router.get("/proximo-jogo/{clube_id}", response_model=ProximoJogoResponse)
+async def get_proximo_jogo(
+    clube_id: int,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+):
+    rodada_atual = data_loader.atletas.rodada_id or 1
+    next_rodada = rodada_atual + 1
+    cache_key = f"partidas:{next_rodada}"
+
+    cached = store.load_json(cache_key)
+    if not cached:
+        cached = await fetch_partidas_from_cartola(
+            data_loader.request_handler, next_rodada
+        )
+        store.save_json(cache_key, cached)
+        store.save_last_updated(cache_key, datetime.now(timezone.utc))
+
+    for match in cached:
+        if str(match["mandante_id"]) == str(clube_id) or str(
+            match["visitante_id"]
+        ) == str(clube_id):
+            if str(match["mandante_id"]) == str(clube_id):
+                return ProximoJogoResponse(
+                    mandante_escudo=match.get("mandante_escudo", ""),
+                    visitante_escudo=match.get("visitante_escudo", ""),
+                    mandante_id=match["mandante_id"],
+                    visitante_id=match["visitante_id"],
+                    rodada=next_rodada,
+                )
+            else:
+                return ProximoJogoResponse(
+                    mandante_escudo=match.get("visitante_escudo", ""),
+                    visitante_escudo=match.get("mandante_escudo", ""),
+                    mandante_id=match["visitante_id"],
+                    visitante_id=match["mandante_id"],
+                    rodada=next_rodada,
+                )
+
+    return ProximoJogoResponse(
+        mandante_escudo="",
+        visitante_escudo="",
+        mandante_id=0,
+        visitante_id=0,
+        rodada=next_rodada,
+    )
