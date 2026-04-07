@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+from ..cartola_models import validate_mercado_response
 from ..request_handler import RequestHandler
 from ..redis_store import RedisDataFrameStore
 
@@ -43,11 +44,18 @@ class Atletas:
         page_json = await self.request_handler.make_get_request(
             "https://api.cartola.globo.com/atletas/mercado"
         )
-        self._rodada_id = page_json["atletas"][0]["rodada_id"]
-        self._df = pd.DataFrame(page_json["atletas"]).loc[:, self.columns]
-        self._clubes = page_json.get("clubes", {})
-        self._posicoes = page_json.get("posicoes", {})
-        self._status = page_json.get("status", {})
+        validated = validate_mercado_response(page_json)
+        self._rodada_id = (
+            validated.rodada_id or validated.atletas[0].rodada_id
+            if validated.atletas
+            else None
+        )
+        self._df = pd.DataFrame([a.model_dump() for a in validated.atletas])[
+            self.columns
+        ]
+        self._clubes = {k: v.model_dump() for k, v in validated.clubes.items()}
+        self._posicoes = {k: v.model_dump() for k, v in validated.posicoes.items()}
+        self._status = {k: v.model_dump() for k, v in validated.status.items()}
         self._last_updated = datetime.now(timezone.utc)
 
     def save_to_redis(self, store: RedisDataFrameStore) -> None:

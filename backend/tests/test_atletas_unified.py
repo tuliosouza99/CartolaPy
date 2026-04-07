@@ -389,6 +389,7 @@ class TestProximoJogoEndpoint:
                 },
                 "partidas": [
                     {
+                        "partida_id": 1001,
                         "clube_casa_id": 10,
                         "clube_visitante_id": 30,
                         "valida": True,

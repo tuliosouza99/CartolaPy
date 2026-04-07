@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+from ..cartola_models import validate_pontuados_response
 from ..enums import Scout
 from ..redis_store import RedisDataFrameStore
 from ..request_handler import RequestHandler
@@ -72,6 +73,8 @@ class Pontuacoes:
         page_json = await self.request_handler.make_get_request(
             f"https://api.cartola.globo.com/atletas/pontuados/{rodada}"
         )
+        validate_pontuados_response(page_json)
+
         rodada_df = (
             pd.DataFrame(page_json["atletas"])
             .T.reset_index(names="atleta_id")

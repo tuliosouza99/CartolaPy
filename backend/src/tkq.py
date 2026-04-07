@@ -4,12 +4,39 @@ import os
 from taskiq import AsyncBroker, InMemoryBroker, TaskiqEvents
 from taskiq_redis.redis_broker import RedisStreamBroker
 
+
+def _get_redis_url() -> str:
+    env = os.environ.get("ENVIRONMENT")
+    redis_url = os.environ.get("REDIS_URL")
+
+    if not redis_url:
+        if env == "production":
+            raise RuntimeError(
+                "REDIS_URL environment variable must be set in production"
+            )
+        redis_url = "redis://localhost:6379"
+
+    if env == "production" and not _has_redis_password(redis_url):
+        raise RuntimeError(
+            "REDIS_URL must include password in production (format: redis://:password@host:port)"
+        )
+
+    return redis_url
+
+
+def _has_redis_password(redis_url: str) -> bool:
+    if "@" not in redis_url:
+        return False
+    scheme_part = redis_url.split("@")[0]
+    return ":" in scheme_part and scheme_part != "redis:"
+
+
 env = os.environ.get("ENVIRONMENT")
 
 if env == "pytest":
     broker: AsyncBroker = InMemoryBroker(await_inplace=True)
 else:
-    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+    redis_url = _get_redis_url()
     broker = RedisStreamBroker(url=redis_url)
 
 from . import tasks  # noqa: E402, F401 - needed for task registration

@@ -355,7 +355,30 @@ class TestConfrontosEndpoint:
         mock_pontuacoes.fill_pontuacoes = AsyncMock(return_value=None)
 
         mock_request_handler = MagicMock()
-        mock_request_handler.make_get_request = AsyncMock(return_value={})
+        mock_request_handler.make_get_request = AsyncMock(
+            return_value={
+                "clubes": {
+                    "10": {
+                        "nome": "Clube Mandante",
+                        "escudos": {"60x60": "http://escudo/mandante.png"},
+                    },
+                    "20": {
+                        "nome": "Clube Visitante",
+                        "escudos": {"60x60": "http://escudo/visitante.png"},
+                    },
+                },
+                "partidas": [
+                    {
+                        "partida_id": 1001,
+                        "clube_casa_id": 10,
+                        "clube_visitante_id": 20,
+                        "valida": True,
+                        "placar_oficial_mandante": 1,
+                        "placar_oficial_visitante": 1,
+                    },
+                ],
+            }
+        )
 
         mock_data_loader = MagicMock()
         mock_data_loader.atletas = mock_atletas
@@ -510,6 +533,7 @@ class TestConfrontosEndpoint:
                 },
                 "partidas": [
                     {
+                        "partida_id": 1001,
                         "clube_casa_id": 10,
                         "clube_visitante_id": 20,
                         "valida": True,

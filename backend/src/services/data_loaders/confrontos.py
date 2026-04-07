@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+from ..cartola_models import validate_partidas_response
 from ..request_handler import RequestHandler
 from ..redis_store import RedisDataFrameStore
 
@@ -67,7 +68,13 @@ class Confrontos:
         page_json = await self.request_handler.make_get_request(
             f"https://api.cartola.globo.com/partidas/{rodada}"
         )
-        api_df = pd.DataFrame(page_json["partidas"]).loc[lambda df_: df_["valida"]]
+        validated = validate_partidas_response(page_json)
+
+        if not validated.partidas:
+            return pd.DataFrame(columns=self.columns)
+
+        api_df = pd.DataFrame([p.model_dump() for p in validated.partidas])
+        api_df = api_df.loc[api_df["valida"]]
 
         return pd.concat(
             [

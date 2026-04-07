@@ -1,14 +1,19 @@
+import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ..dependencies import get_data_loader, get_redis_store
 from ..services import DataLoader
 from ..services.atletas_unified import compute_atletas_unified
+from ..services.cartola_models import validate_partidas_response
 from ..services.pontos_cedidos_unified import compute_pontos_cedidos_unified
 from ..services.redis_store import RedisDataFrameStore
+from .auth import verify_api_key, verify_admin_api_key
 from .models import (
     AtletaHistoricoItem,
     AtletaHistoricoResponse,
@@ -25,10 +30,15 @@ from .models import (
     UpdateResponse,
 )
 
+logger = logging.getLogger(__name__)
+
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter()
 
 
 @router.get("/tables/atletas", response_model=TableResponse)
+@limiter.limit("100/minute")
 async def get_atletas(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
@@ -61,6 +71,7 @@ async def get_atletas(
 
 
 @router.get("/tables/pontuacoes", response_model=TableResponse)
+@limiter.limit("100/minute")
 async def get_pontuacoes(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
@@ -93,6 +104,7 @@ async def get_pontuacoes(
 
 
 @router.get("/tables/confrontos", response_model=TableResponse)
+@limiter.limit("100/minute")
 async def get_confrontos(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
@@ -125,6 +137,7 @@ async def get_confrontos(
 
 
 @router.get("/tables/pontos-cedidos", response_model=TableResponse)
+@limiter.limit("100/minute")
 async def get_pontos_cedidos(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
@@ -157,7 +170,9 @@ async def get_pontos_cedidos(
 
 
 @router.get("/tables/status", response_model=TableStatus)
+@limiter.limit("100/minute")
 async def get_table_status(
+    request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
@@ -174,36 +189,45 @@ async def fetch_partidas_from_cartola(request_handler, rodada: int) -> list[dict
     page_json = await request_handler.make_get_request(
         f"https://api.cartola.globo.com/partidas/{rodada}"
     )
+    validated = validate_partidas_response(page_json)
 
-    clubes = page_json.get("clubes", {})
+    clubes = validated.clubes
 
-    return [
-        {
-            "partida_id": p.get("partida_id"),
-            "mandante_id": p["clube_casa_id"],
-            "visitante_id": p["clube_visitante_id"],
-            "mandante_escudo": clubes.get(str(p["clube_casa_id"]), {})
-            .get("escudos", {})
-            .get("60x60", ""),
-            "visitante_escudo": clubes.get(str(p["clube_visitante_id"]), {})
-            .get("escudos", {})
-            .get("60x60", ""),
-            "mandante_nome": clubes.get(str(p["clube_casa_id"]), {}).get("nome", ""),
-            "visitante_nome": clubes.get(str(p["clube_visitante_id"]), {}).get(
-                "nome", ""
-            ),
-            "placar_oficial_mandante": p.get("placar_oficial_mandante"),
-            "placar_oficial_visitante": p.get("placar_oficial_visitante"),
-            "local": p.get("local"),
-            "partida_data": p.get("partida_data"),
-        }
-        for p in page_json.get("partidas", [])
-        if p.get("valida", False)
-    ]
+    result = []
+    for p in validated.partidas:
+        if not p.valida:
+            continue
+        clube_casa_id_str = str(p.clube_casa_id)
+        clube_visitante_id_str = str(p.clube_visitante_id)
+        result.append(
+            {
+                "partida_id": p.partida_id,
+                "mandante_id": p.clube_casa_id,
+                "visitante_id": p.clube_visitante_id,
+                "mandante_escudo": clubes.get(clube_casa_id_str, {}).escudos.get(
+                    "60x60", ""
+                ),
+                "visitante_escudo": clubes.get(clube_visitante_id_str, {}).escudos.get(
+                    "60x60", ""
+                ),
+                "mandante_nome": clubes.get(clube_casa_id_str, {}).nome_fantasia
+                or clubes.get(clube_casa_id_str, {}).nome,
+                "visitante_nome": clubes.get(clube_visitante_id_str, {}).nome_fantasia
+                or clubes.get(clube_visitante_id_str, {}).nome,
+                "placar_oficial_mandante": p.placar_oficial_mandante,
+                "placar_oficial_visitante": p.placar_oficial_visitante,
+                "local": p.local,
+                "partida_data": p.partida_data,
+            }
+        )
+
+    return result
 
 
 @router.get("/partidas/{rodada}", response_model=list[dict])
+@limiter.limit("100/minute")
 async def get_partidas(
+    request: Request,
     rodada: int,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
@@ -222,7 +246,9 @@ async def get_partidas(
 
 
 @router.get("/confrontos/{rodada}", response_model=ConfrontosResponse)
+@limiter.limit("100/minute")
 async def get_confrontos_detail(
+    request: Request,
     rodada: int,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
@@ -343,7 +369,9 @@ async def get_confrontos_detail(
 
 
 @router.get("/tables/filter-options")
+@limiter.limit("100/minute")
 async def get_filter_options(
+    request: Request,
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
     clubes_cache = store.load_json("clubes")
@@ -377,7 +405,10 @@ async def get_filter_options(
 
 
 @router.post("/update/atletas", response_model=UpdateResponse)
+@limiter.limit("10/minute")
 async def update_atletas(
+    request: Request,
+    _: Annotated[str, Depends(verify_api_key)],
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
@@ -389,11 +420,16 @@ async def update_atletas(
             message="Atletas updated successfully",
             updated_at=data_loader.atletas.last_updated,
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Failed to update atletas")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update atletas data",
+        )
 
 
 @router.get("/tables/atletas-unified", response_model=TableResponse)
+@limiter.limit("100/minute")
 async def get_atletas_unified(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
@@ -416,15 +452,19 @@ async def get_atletas_unified(
     if rodada_max is None:
         rodada_max = rodada_atual
 
-    parsed_clube_ids = (
-        [int(x) for x in clube_ids.split(",") if x.isdigit()] if clube_ids else None
-    )
-    parsed_posicao_ids = (
-        [int(x) for x in posicao_ids.split(",") if x.isdigit()] if posicao_ids else None
-    )
-    parsed_status_ids = (
-        [int(x) for x in status_ids.split(",") if x.isdigit()] if status_ids else None
-    )
+    def parse_ids(param: str | None) -> list[int] | None:
+        if not param:
+            return None
+        result = []
+        for x in param.split(","):
+            x = x.strip()
+            if x.lstrip("-").isdigit():
+                result.append(int(x))
+        return result if result else None
+
+    parsed_clube_ids = parse_ids(clube_ids)
+    parsed_posicao_ids = parse_ids(posicao_ids)
+    parsed_status_ids = parse_ids(status_ids)
 
     clubes_cache = store.load_json("clubes")
     posicoes_cache = store.load_json("posicoes")
@@ -506,7 +546,9 @@ async def get_atletas_unified(
 @router.get(
     "/tables/atletas/{atleta_id}/historico", response_model=AtletaHistoricoResponse
 )
+@limiter.limit("100/minute")
 async def get_atleta_historico(
+    request: Request,
     atleta_id: int,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
@@ -618,6 +660,7 @@ async def get_atleta_historico(
 
 
 @router.get("/tables/pontos-cedidos-unified", response_model=TableResponse)
+@limiter.limit("100/minute")
 async def get_pontos_cedidos_unified(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
@@ -680,7 +723,9 @@ async def get_pontos_cedidos_unified(
     "/tables/pontos-cedidos-unified/{clube_id}/matches",
     response_model=MatchPontosCedidosListResponse,
 )
+@limiter.limit("100/minute")
 async def get_pontos_cedidos_unified_matches(
+    request: Request,
     clube_id: int,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
@@ -758,7 +803,9 @@ async def get_pontos_cedidos_unified_matches(
 
 
 @router.get("/proximo-jogo/{clube_id}", response_model=ProximoJogoResponse)
+@limiter.limit("100/minute")
 async def get_proximo_jogo(
+    request: Request,
     clube_id: int,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
@@ -806,7 +853,10 @@ async def get_proximo_jogo(
 
 
 @router.get("/redis/all")
+@limiter.limit("10/minute")
 async def get_redis_all(
+    request: Request,
+    _: Annotated[str, Depends(verify_admin_api_key)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
     keys = [
@@ -827,10 +877,16 @@ async def get_redis_all(
     metadata = store.load_metadata()
     result["_metadata"] = metadata
 
-    redis_keys = store.redis.keys("cartolapy:partidas:*")
-    for key in redis_keys:
-        decoded_key = key.decode() if isinstance(key, bytes) else key
-        nome = decoded_key.replace("cartolapy:", "")
-        result[nome] = store.load_json(nome)
+    cursor = 0
+    while True:
+        cursor, keys_batch = store.redis.scan(
+            cursor=cursor, match="cartolapy:partidas:*", count=100
+        )
+        for key in keys_batch:
+            decoded_key = key.decode() if isinstance(key, bytes) else key
+            nome = decoded_key.replace("cartolapy:", "")
+            result[nome] = store.load_json(nome)
+        if cursor == 0:
+            break
 
     return result

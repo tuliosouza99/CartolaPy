@@ -462,7 +462,7 @@ function Confrontos() {
                     flex: 1,
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "flex-end",
+                    justifyContent: "center",
                     gap: "0.75rem",
                   }}
                 >

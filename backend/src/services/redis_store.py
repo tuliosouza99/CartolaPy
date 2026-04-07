@@ -10,8 +10,15 @@ import redis
 class RedisDataFrameStore:
     PREFIX = "cartolapy"
 
-    def __init__(self, redis_url: str = "redis://localhost:6379"):
-        self.redis = redis.from_url(redis_url, decode_responses=False)
+    def __init__(
+        self, redis_url: str = "redis://localhost:6379", socket_timeout: float = 5.0
+    ):
+        self.redis = redis.from_url(
+            redis_url,
+            decode_responses=False,
+            socket_timeout=socket_timeout,
+            socket_connect_timeout=socket_timeout,
+        )
         self._verify_connection()
 
     def _verify_connection(self):

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import TableView from '../components/TableView'
-import UpdateButton from '../components/UpdateButton'
 
 const columns = [
   { key: 'atleta_id', label: 'ID' },
@@ -49,7 +48,6 @@ function Atletas() {
       endpoint="atletas" 
       columns={columns} 
       lastUpdatedMap={lastUpdatedMap}
-      action={<UpdateButton onSuccess={fetchStatus} />}
     />
   )
 }

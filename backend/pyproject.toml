@@ -11,6 +11,8 @@ dependencies = [
     "pandas>=3.0.2",
     "pyarrow>=15.0.0",
     "redis>=5.0.0",
+    "pydantic-settings>=2.0.0",
+    "slowapi>=0.1.9",
     "taskiq-fastapi>=0.4.0",
     "taskiq-redis>=0.6.0",
 ]
