@@ -20,6 +20,9 @@ function PontosCedidosUnified() {
   const [filterOptions, setFilterOptions] = useState({ clubes: {}, posicoes: [] });
   const [sortBy, setSortBy] = useState("media_cedida");
   const [sortDirection, setSortDirection] = useState("desc");
+  const [expandedMatches, setExpandedMatches] = useState({});
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const loadingMatchesRef = useRef(new Set());
 
   const urlRestored = useRef(false);
 
@@ -199,7 +202,47 @@ function PontosCedidosUnified() {
     [getClubeEscudo, getClubeName]
   );
 
-  const expandedContent = useCallback(
+  const fetchMatchData = useCallback(
+    async (clubeId, posId) => {
+      const key = `${clubeId}-${posId}`;
+      if (expandedMatches[key] || loadingMatchesRef.current.has(key)) return;
+      loadingMatchesRef.current.add(key);
+
+      try {
+        const params = new URLSearchParams({
+          rodada_min: rodadaRange.min,
+          rodada_max: rodadaRange.max,
+          posicao_id: posId,
+        });
+        const res = await fetch(
+          `/api/tables/pontos-cedidos-unified/${clubeId}/matches?${params}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setExpandedMatches((prev) => ({ ...prev, [key]: data.matches || [] }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch match data:", err);
+      } finally {
+        loadingMatchesRef.current.delete(key);
+      }
+    },
+    [rodadaRange, expandedMatches]
+  );
+
+  const handleExpandedRowsChange = useCallback(
+    (newExpandedRows) => {
+      setExpandedRows(newExpandedRows);
+    },
+    []
+  );
+
+  useEffect(() => {
+    setExpandedMatches({});
+    loadingMatchesRef.current.clear();
+  }, [rodadaRange]);
+
+  const renderExpandedContent = useCallback(
     (row) => {
       const scouts = row.scouts || {};
       const positionScouts = SCOUTS_BY_POSITION[selectedPosition] || [];
@@ -210,7 +253,23 @@ function PontosCedidosUnified() {
           positionScouts.includes(key)
       );
 
-      if (scoutEntries.length === 0) {
+      const matchKey = `${row.clube_id}-${selectedPosition}`;
+      const allMatchData = expandedMatches[matchKey] || null;
+      
+      if (!allMatchData) {
+        fetchMatchData(row.clube_id, selectedPosition);
+      }
+      
+      const matchData = allMatchData
+        ? allMatchData.filter((m) => {
+            if (m.opponent_clube_id === row.clube_id) return false;
+            if (isMandante === "mandante" && m.is_mandante !== false) return false;
+            if (isMandante === "visitante" && m.is_mandante !== true) return false;
+            return true;
+          })
+        : null;
+
+      if (scoutEntries.length === 0 && !matchData) {
         return (
           <div style={{ padding: "1rem", color: "var(--text-muted)" }}>
             Nenhum scout registrado
@@ -220,6 +279,52 @@ function PontosCedidosUnified() {
 
       return (
         <div style={{ padding: "1rem" }}>
+          {scoutEntries.length > 0 && (
+            <>
+              <div
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "var(--text-secondary)",
+                  marginBottom: "0.5rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Média Cedida por Scout
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                  marginBottom: "1rem",
+                }}
+              >
+                {scoutEntries.map(([key, value]) => (
+                  <span
+                    key={key}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.25rem 0.5rem",
+                      background: "var(--bg-card)",
+                      borderRadius: "var(--radius-sm)",
+                      fontFamily: "var(--font-mono)",
+                      fontSize: "0.75rem",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>{key}</span>
+                    <span style={{ color: "var(--orange)" }}>{Number(value).toFixed(2)}</span>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+
           <div
             style={{
               fontFamily: "var(--font-display)",
@@ -231,39 +336,83 @@ function PontosCedidosUnified() {
               letterSpacing: "0.05em",
             }}
           >
-            Média Cedida por Scout
+            Média Cedida por Confronto
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.5rem",
-            }}
-          >
-            {scoutEntries.map(([key, value]) => (
-              <span
-                key={key}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.25rem",
-                  padding: "0.25rem 0.5rem",
-                  background: "var(--bg-card)",
-                  borderRadius: "var(--radius-sm)",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "0.75rem",
-                  color: "var(--text-primary)",
-                }}
-              >
-                <span style={{ fontWeight: 600 }}>{key}</span>
-                <span style={{ color: "var(--orange)" }}>{Number(value).toFixed(2)}</span>
-              </span>
-            ))}
-          </div>
+          {!matchData ? (
+            <div style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+              Carregando...
+            </div>
+          ) : matchData.length === 0 ? (
+            <div style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+              Nenhum confronto encontrado
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gap: "0.5rem",
+              }}
+            >
+              {matchData.map((match) => (
+                <a
+                  key={match.partida_id}
+                  href={`/confrontos?rodada=${match.rodada_id}&partida_id=${match.partida_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.5rem",
+                    background: "var(--bg-card)",
+                    borderRadius: "var(--radius-sm)",
+                    textDecoration: "none",
+                    color: "var(--text-primary)",
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  <img
+                    src={match.opponent_escudo}
+                    alt="opponent"
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      objectFit: "contain",
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = "none";
+                    }}
+                  />
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {match.opponent_nome}
+                  </span>
+                  <span
+                    style={{
+                      padding: "0.125rem 0.25rem",
+                      background: match.is_mandante ? "var(--orange)" : "var(--bg-secondary)",
+                      color: match.is_mandante ? "white" : "var(--text-secondary)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.625rem",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {match.is_mandante ? "M" : "V"}
+                  </span>
+                  <span style={{ color: "var(--text-secondary)", fontSize: "0.625rem" }}>
+                    R{String(match.rodada_id).padStart(2, "0")}
+                  </span>
+                  <span style={{ color: "var(--orange)", fontWeight: 600, fontSize: "0.75rem" }}>
+                    {Number(match.pontuacao).toFixed(1)}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       );
     },
-    [selectedPosition]
+    [selectedPosition, expandedMatches, fetchMatchData, isMandante]
   );
 
   const topBarComponent = useMemo(
@@ -358,7 +507,9 @@ function PontosCedidosUnified() {
         filterComponent={topBarComponent}
         extraParams={extraParams}
         expandable={true}
-        expandedContent={expandedContent}
+        expandedContent={renderExpandedContent}
+        expandedRows={expandedRows}
+        onExpandedRowsChange={handleExpandedRowsChange}
         hideCount={true}
         hideUpdate={true}
         hideTimestamps={true}

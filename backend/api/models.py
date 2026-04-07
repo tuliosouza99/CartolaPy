@@ -81,6 +81,7 @@ class PlayerConfrontoResponse(BaseModel):
 
 
 class ConfrontoMatchResponse(BaseModel):
+    partida_id: int | None
     mandante_id: int
     mandante_nome: str
     mandante_escudo: str
@@ -98,3 +99,18 @@ class ConfrontoMatchResponse(BaseModel):
 class ConfrontosResponse(BaseModel):
     rodada: int
     matches: list[ConfrontoMatchResponse]
+
+
+class MatchPontosCedidosResponse(BaseModel):
+    partida_id: int
+    rodada_id: int
+    opponent_clube_id: int
+    opponent_nome: str
+    opponent_escudo: str
+    is_mandante: bool
+    pontuacao: float
+    pontuacao_basica: float
+
+
+class MatchPontosCedidosListResponse(BaseModel):
+    matches: list[MatchPontosCedidosResponse]

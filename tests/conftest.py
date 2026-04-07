@@ -25,6 +25,10 @@ def init_taskiq_deps(fastapi_app):
         taskiq_fastapi.populate_dependency_context(broker, fastapi_app)
         broker.state.fastapi_app = fastapi_app
 
+        from backend.dependencies import get_redis_store
+
+        get_redis_store.cache_clear()
+
         mock_atletas = MagicMock()
         mock_atletas.rodada_id = 15
         mock_atletas.fill_atletas = AsyncMock(return_value=None)

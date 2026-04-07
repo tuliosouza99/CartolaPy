@@ -44,6 +44,7 @@ class TestConfrontos:
             "opponent_clube_id",
             "is_mandante",
             "rodada_id",
+            "partida_id",
         ]
 
     @pytest.mark.anyio

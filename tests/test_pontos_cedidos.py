@@ -35,6 +35,7 @@ class TestPontosCedidos:
                 "opponent_clube_id": [276, 303, 264, 287],
                 "is_mandante": [True, True, False, False],
                 "rodada_id": [1, 2, 1, 2],
+                "partida_id": [1001, 1002, 1001, 1002],
             }
         )
 
@@ -46,6 +47,7 @@ class TestPontosCedidos:
             "posicao_id",
             "is_mandante",
             "rodada_id",
+            "partida_id",
             "pontuacao",
             "pontuacao_basica",
             *Scout.as_list(),

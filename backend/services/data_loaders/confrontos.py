@@ -11,7 +11,13 @@ class Confrontos:
     REDIS_KEY = "confrontos"
 
     def __init__(self, request_handler: RequestHandler):
-        self.columns = ["clube_id", "opponent_clube_id", "is_mandante", "rodada_id"]
+        self.columns = [
+            "clube_id",
+            "opponent_clube_id",
+            "is_mandante",
+            "rodada_id",
+            "partida_id",
+        ]
         self.request_handler = request_handler
         self._df = pd.DataFrame(columns=self.columns)
         self._last_updated: datetime | None = None
@@ -50,6 +56,7 @@ class Confrontos:
             "opponent_clube_id",
             "is_mandante",
             "rodada_id",
+            "partida_id",
         ]
         confrontos.request_handler = None
         confrontos._df = df

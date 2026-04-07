@@ -14,6 +14,7 @@ function Confrontos() {
   const [showSelect, setShowSelect] = useState(false);
   const urlRestored = useRef(false);
   const initialLoadComplete = useRef(false);
+  const urlPartidaId = useRef(null);
 
   const ROUTE = "/confrontos";
 
@@ -23,6 +24,9 @@ function Confrontos() {
     if (params.get("rodada")) {
       urlState.rodada = parseInt(params.get("rodada"), 10);
     }
+    if (params.get("partida_id")) {
+      urlState.partida_id = parseInt(params.get("partida_id"), 10);
+    }
 
     if (Object.keys(urlState).length === 0) {
       const saved = sessionStorage.getItem(ROUTE);
@@ -31,11 +35,17 @@ function Confrontos() {
         if (savedParams.get("rodada")) {
           urlState.rodada = parseInt(savedParams.get("rodada"), 10);
         }
+        if (savedParams.get("partida_id")) {
+          urlState.partida_id = parseInt(savedParams.get("partida_id"), 10);
+        }
       }
     }
 
     if (urlState.rodada) {
       setRodada(urlState.rodada);
+    }
+    if (urlState.partida_id) {
+      urlPartidaId.current = urlState.partida_id;
     }
     urlRestored.current = true;
   }, []);
@@ -76,13 +86,12 @@ function Confrontos() {
         const data = await res.json();
         setStatusData(data);
         const params = new URLSearchParams(window.location.search);
-        const hasUrlRodada = params.get("rodada");
+        const urlRodada = params.get("rodada") ? parseInt(params.get("rodada"), 10) : null;
         const saved = sessionStorage.getItem(ROUTE);
-        const hasSavedRodada = saved && new URLSearchParams(saved).get("rodada");
-        const targetRodada = hasUrlRodada || hasSavedRodada
-          ? rodada
-          : (data.rodada_atual || 1);
-        if (!hasUrlRodada && !hasSavedRodada) {
+        const savedParams = new URLSearchParams(saved || "");
+        const savedRodada = savedParams.get("rodada") ? parseInt(savedParams.get("rodada"), 10) : null;
+        const targetRodada = urlRodada || savedRodada || (data.rodada_atual || 1);
+        if (!urlRodada && !savedRodada) {
           setRodada(targetRodada);
         }
         fetchConfrontos(targetRodada);
@@ -99,7 +108,18 @@ function Confrontos() {
       const res = await fetch(`/api/confrontos/${rodadaNum}`);
       if (res.ok) {
         const data = await res.json();
-        setMatches(data.matches || []);
+        const fetchedMatches = data.matches || [];
+        setMatches(fetchedMatches);
+
+        if (urlPartidaId.current !== null) {
+          const matchIndex = fetchedMatches.findIndex(
+            (m) => m.partida_id === urlPartidaId.current
+          );
+          if (matchIndex !== -1) {
+            setExpandedMatches(new Set([matchIndex]));
+          }
+          urlPartidaId.current = null;
+        }
       }
     } catch (err) {
       console.error("Failed to fetch confrontos:", err);

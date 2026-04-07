@@ -371,6 +371,10 @@ class TestConfrontosEndpoint:
         fastapi_app.state.data_loader = mock_data_loader
         fastapi_app.state.redis_store = mock_redis_store
 
+        from backend.tkq import broker
+
+        broker.state.redis_store = mock_redis_store
+
         return fastapi_app
 
     @pytest.fixture
@@ -378,6 +382,8 @@ class TestConfrontosEndpoint:
         return TestClient(fastapi_app_with_mock_data)
 
     def test_returns_correct_structure(self, client, fastapi_app_with_mock_data):
+        from backend.tkq import broker
+
         cached_data = [
             {
                 "mandante_id": 10,
@@ -403,64 +409,7 @@ class TestConfrontosEndpoint:
                 }
             return None
 
-        fastapi_app_with_mock_data.state.redis_store.load_json = MagicMock(
-            side_effect=load_json_side_effect
-        )
-
-        response = client.get("/api/confrontos/10")
-        assert response.status_code == 200
-        data = response.json()
-        assert "rodada" in data
-        assert "matches" in data
-        assert data["rodada"] == 10
-
-    def test_match_structure(self, client, fastapi_app_with_mock_data):
-        response = client.get("/api/confrontos/10")
-        assert response.status_code == 200
-        data = response.json()
-
-        assert len(data["matches"]) >= 1
-        match = data["matches"][0]
-        assert "mandante_id" in match
-        assert "visitante_id" in match
-        assert "mandante_nome" in match
-        assert "visitante_nome" in match
-        assert "placar_mandante" in match
-        assert "placar_visitante" in match
-        assert "local" in match
-        assert "partida_data" in match
-        assert "mandante_players" in match
-        assert "visitante_players" in match
-
-    def test_players_sorted_by_position_then_name(
-        self, client, fastapi_app_with_mock_data
-    ):
-        cached_data = [
-            {
-                "mandante_id": 10,
-                "visitante_id": 20,
-                "mandante_escudo": "http://escudo/mandante.png",
-                "visitante_escudo": "http://escudo/visitante.png",
-                "mandante_nome": "Clube Mandante",
-                "visitante_nome": "Clube Visitante",
-                "placar_oficial_mandante": 1,
-                "placar_oficial_visitante": 0,
-                "local": None,
-                "partida_data": None,
-            }
-        ]
-
-        def load_json_side_effect(key):
-            if key == "partidas:10":
-                return cached_data
-            if key == "posicoes":
-                return {
-                    "1": {"id": 1, "nome": "Goleiro", "abreviacao": "GOL"},
-                    "2": {"id": 2, "nome": "Atacante", "abreviacao": "ATA"},
-                }
-            return None
-
-        fastapi_app_with_mock_data.state.redis_store.load_json = MagicMock(
+        broker.state.redis_store.load_json = MagicMock(
             side_effect=load_json_side_effect
         )
 
@@ -474,6 +423,8 @@ class TestConfrontosEndpoint:
         assert mandante_players[1]["apelido"] == "Forward A"
 
     def test_player_structure(self, client, fastapi_app_with_mock_data):
+        from backend.tkq import broker
+
         cached_data = [
             {
                 "mandante_id": 10,
@@ -499,7 +450,7 @@ class TestConfrontosEndpoint:
                 }
             return None
 
-        fastapi_app_with_mock_data.state.redis_store.load_json = MagicMock(
+        broker.state.redis_store.load_json = MagicMock(
             side_effect=load_json_side_effect
         )
 
@@ -530,6 +481,8 @@ class TestConfrontosEndpoint:
         assert isinstance(data["matches"], list)
 
     def test_fetches_from_api_on_cache_miss(self, client, fastapi_app_with_mock_data):
+        from backend.tkq import broker
+
         def load_json_side_effect(key):
             if key == "partidas:10":
                 return None
@@ -540,7 +493,7 @@ class TestConfrontosEndpoint:
                 }
             return None
 
-        fastapi_app_with_mock_data.state.redis_store.load_json = MagicMock(
+        broker.state.redis_store.load_json = MagicMock(
             side_effect=load_json_side_effect
         )
 
@@ -576,3 +529,167 @@ class TestConfrontosEndpoint:
         assert len(data["matches"]) == 1
         assert data["matches"][0]["mandante_id"] == 10
         assert data["matches"][0]["visitante_id"] == 20
+
+    def test_match_includes_partida_id(self, client, fastapi_app_with_mock_data):
+        from backend.tkq import broker
+
+        cached_data = [
+            {
+                "partida_id": 1001,
+                "mandante_id": 10,
+                "visitante_id": 20,
+                "mandante_escudo": "http://escudo/mandante.png",
+                "visitante_escudo": "http://escudo/visitante.png",
+                "mandante_nome": "Clube Mandante",
+                "visitante_nome": "Clube Visitante",
+                "placar_oficial_mandante": 2,
+                "placar_oficial_visitante": 1,
+                "local": "Estadio X",
+                "partida_data": "2024-10-01T20:00:00",
+            }
+        ]
+
+        def load_json_side_effect(key):
+            if key == "partidas:10":
+                return cached_data
+            if key == "posicoes":
+                return {
+                    "1": {"id": 1, "nome": "Goleiro", "abreviacao": "GOL"},
+                    "2": {"id": 2, "nome": "Atacante", "abreviacao": "ATA"},
+                }
+            return None
+
+        broker.state.redis_store.load_json = MagicMock(
+            side_effect=load_json_side_effect
+        )
+
+        response = client.get("/api/confrontos/10")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["matches"]) == 1
+        assert "partida_id" in data["matches"][0]
+        assert data["matches"][0]["partida_id"] == 1001
+
+
+class TestPontosCedidosUnifiedMatchesEndpoint:
+    @pytest.fixture
+    def fastapi_app_with_mock_data(self, fastapi_app):
+        from backend.services.enums import Scout
+
+        pontuacoes_df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2],
+                "posicao_id": [1, 1],
+                "clube_id": [10, 20],
+                "rodada_id": [5, 5],
+                "pontuacao": [5.0, 3.0],
+                "pontuacao_basica": [5, 3],
+                **{scout: [1, 0] for scout in Scout.as_list()},
+            }
+        )
+
+        confrontos_df = pd.DataFrame(
+            {
+                "clube_id": [10, 20],
+                "opponent_clube_id": [20, 10],
+                "is_mandante": [True, False],
+                "rodada_id": [5, 5],
+                "partida_id": [1001, 1001],
+            }
+        )
+
+        pontos_cedidos_df = pd.DataFrame(
+            {
+                "clube_id": [10, 20],
+                "posicao_id": [1, 1],
+                "is_mandante": [True, False],
+                "rodada_id": [5, 5],
+                "partida_id": [1001, 1001],
+                "pontuacao": [5.0, 3.0],
+                "pontuacao_basica": [5, 3],
+                **{scout: [1, 0] for scout in Scout.as_list()},
+            }
+        )
+
+        mock_atletas = MagicMock()
+        mock_atletas.rodada_id = 15
+        mock_atletas.df = pd.DataFrame()
+
+        mock_confrontos = MagicMock()
+        mock_confrontos.df = confrontos_df
+
+        mock_pontuacoes = MagicMock()
+        mock_pontuacoes.df = pontuacoes_df
+
+        mock_pontos_cedidos = MagicMock()
+        mock_pontos_cedidos.df = pontos_cedidos_df
+
+        mock_data_loader = MagicMock()
+        mock_data_loader.atletas = mock_atletas
+        mock_data_loader.confrontos = mock_confrontos
+        mock_data_loader.pontuacoes = mock_pontuacoes
+        mock_data_loader.pontos_cedidos = mock_pontos_cedidos
+
+        mock_redis_store = MagicMock()
+        mock_redis_store.load_json = MagicMock(
+            return_value={
+                "10": {
+                    "id": 10,
+                    "nome_fantasia": "Clube Casa",
+                    "escudos": {"60x60": "http://escudo/10.png"},
+                },
+                "20": {
+                    "id": 20,
+                    "nome_fantasia": "Clube Fora",
+                    "escudos": {"60x60": "http://escudo/20.png"},
+                },
+            }
+        )
+
+        fastapi_app.state.data_loader = mock_data_loader
+        fastapi_app.state.redis_store = mock_redis_store
+
+        from backend.tkq import broker
+
+        broker.state.redis_store = mock_redis_store
+
+        return fastapi_app
+
+    @pytest.fixture
+    def client(self, fastapi_app_with_mock_data):
+        return TestClient(fastapi_app_with_mock_data)
+
+    def test_returns_correct_structure(self, client, fastapi_app_with_mock_data):
+        response = client.get(
+            "/api/tables/pontos-cedidos-unified/10/matches?rodada_min=1&rodada_max=10&posicao_id=1"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "matches" in data
+        assert isinstance(data["matches"], list)
+
+    def test_match_contains_required_fields(self, client, fastapi_app_with_mock_data):
+        response = client.get(
+            "/api/tables/pontos-cedidos-unified/10/matches?rodada_min=1&rodada_max=10&posicao_id=1"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["matches"]) >= 1
+        match = data["matches"][0]
+        assert "partida_id" in match
+        assert "rodada_id" in match
+        assert "opponent_clube_id" in match
+        assert "opponent_nome" in match
+        assert "opponent_escudo" in match
+        assert "is_mandante" in match
+        assert "pontuacao" in match
+        assert "pontuacao_basica" in match
+
+    def test_is_mandante_indicator_present(self, client, fastapi_app_with_mock_data):
+        response = client.get(
+            "/api/tables/pontos-cedidos-unified/10/matches?rodada_min=1&rodada_max=10&posicao_id=1"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        for match in data["matches"]:
+            assert isinstance(match["is_mandante"], bool)

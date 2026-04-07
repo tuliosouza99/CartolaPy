@@ -10,15 +10,17 @@ from ..services.atletas_unified import compute_atletas_unified
 from ..services.pontos_cedidos_unified import compute_pontos_cedidos_unified
 from ..services.redis_store import RedisDataFrameStore
 from .models import (
-    ConfrontosResponse,
     ConfrontoMatchResponse,
+    ConfrontosResponse,
     IsMandante,
+    MatchPontosCedidosListResponse,
+    MatchPontosCedidosResponse,
     PlayerConfrontoResponse,
+    ProximoJogoResponse,
     SortDirection,
     TableResponse,
     TableStatus,
     UpdateResponse,
-    ProximoJogoResponse,
 )
 
 router = APIRouter()
@@ -175,6 +177,7 @@ async def fetch_partidas_from_cartola(request_handler, rodada: int) -> list[dict
 
     return [
         {
+            "partida_id": p.get("partida_id"),
             "mandante_id": p["clube_casa_id"],
             "visitante_id": p["clube_visitante_id"],
             "mandante_escudo": clubes.get(str(p["clube_casa_id"]), {})
@@ -232,13 +235,14 @@ async def get_confrontos_detail(
 
     posicoes_cache = store.load_json("posicoes")
 
-    pontuacoes_df = data_loader.pontuacoes.df.copy()
-    pontuacoes_df["atleta_id"] = pd.to_numeric(
-        pontuacoes_df["atleta_id"], errors="coerce"
-    ).astype("Int64")
+    pontuacoes_df = data_loader.pontuacoes.df.copy().assign(
+        atleta_id=lambda df_: pd.to_numeric(df_["atleta_id"], errors="coerce").astype(
+            "Int64"
+        )
+    )
     atletas_df = data_loader.atletas.df
 
-    pontuacoes_rodada = pontuacoes_df[
+    pontuacoes_rodada = pontuacoes_df.loc[
         pontuacoes_df["rodada_id"] == rodada
     ].drop_duplicates(subset=["atleta_id"])
 
@@ -252,7 +256,7 @@ async def get_confrontos_detail(
             if club_pont.empty:
                 return []
 
-            club_atletas = atletas_df[
+            club_atletas = atletas_df.loc[
                 atletas_df["atleta_id"].isin(club_pont["atleta_id"])
             ][["atleta_id", "apelido"]].drop_duplicates(subset=["atleta_id"])
 
@@ -317,6 +321,7 @@ async def get_confrontos_detail(
 
         matches.append(
             ConfrontoMatchResponse(
+                partida_id=match.get("partida_id"),
                 mandante_id=mandante_id,
                 mandante_nome=match.get("mandante_nome", ""),
                 mandante_escudo=match.get("mandante_escudo", ""),
@@ -553,6 +558,87 @@ async def get_pontos_cedidos_unified(
         sort_by=sort_by,
         sort_direction=sort_direction.value if sort_direction else None,
     )
+
+
+@router.get(
+    "/tables/pontos-cedidos-unified/{clube_id}/matches",
+    response_model=MatchPontosCedidosListResponse,
+)
+async def get_pontos_cedidos_unified_matches(
+    clube_id: int,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+    rodada_min: int = Query(default=1, ge=1),
+    rodada_max: int | None = None,
+    posicao_id: int = Query(default=1, ge=1),
+):
+    rodada_atual = store.load_rodada_id() or 1
+    if rodada_max is None:
+        rodada_max = rodada_atual
+
+    pontos_cedidos_df = data_loader.pontos_cedidos.df
+    if pontos_cedidos_df.empty:
+        return MatchPontosCedidosListResponse(matches=[])
+
+    filtered = pontos_cedidos_df[
+        (pontos_cedidos_df["clube_id"] == clube_id)
+        & (pontos_cedidos_df["rodada_id"] >= rodada_min)
+        & (pontos_cedidos_df["rodada_id"] <= rodada_max)
+        & (pontos_cedidos_df["posicao_id"] == posicao_id)
+    ].copy()
+
+    if filtered.empty:
+        return MatchPontosCedidosListResponse(matches=[])
+
+    confrontos_df = data_loader.confrontos.df
+    filtered = filtered.merge(
+        confrontos_df[["partida_id", "opponent_clube_id", "rodada_id", "is_mandante"]],
+        on=["partida_id", "is_mandante", "rodada_id"],
+        how="left",
+        suffixes=("", "_conf"),
+    )
+
+    clubes_cache = store.load_json("clubes") or {}
+
+    results = []
+    for _, row in filtered.iterrows():
+        opponent_clube_id = (
+            int(row["opponent_clube_id"])
+            if pd.notna(row["opponent_clube_id"])
+            else None
+        )
+        opponent_clube_data = (
+            clubes_cache.get(str(opponent_clube_id), {}) if opponent_clube_id else {}
+        )
+        opponent_nome = opponent_clube_data.get("nome", "")
+        opponent_escudo = (
+            opponent_clube_data.get("escudos", {}).get("60x60", "")
+            if opponent_clube_data
+            else ""
+        )
+
+        results.append(
+            MatchPontosCedidosResponse(
+                partida_id=int(row["partida_id"]) if pd.notna(row["partida_id"]) else 0,
+                rodada_id=int(row["rodada_id"]),
+                opponent_clube_id=opponent_clube_id or 0,
+                opponent_nome=opponent_nome,
+                opponent_escudo=opponent_escudo,
+                is_mandante=bool(row["is_mandante"])
+                if pd.notna(row["is_mandante"])
+                else True,
+                pontuacao=float(row["pontuacao"])
+                if pd.notna(row["pontuacao"])
+                else 0.0,
+                pontuacao_basica=float(row["pontuacao_basica"])
+                if pd.notna(row["pontuacao_basica"])
+                else 0.0,
+            )
+        )
+
+    results.sort(key=lambda x: x.rodada_id, reverse=True)
+
+    return MatchPontosCedidosListResponse(matches=results)
 
 
 @router.get("/proximo-jogo/{clube_id}", response_model=ProximoJogoResponse)

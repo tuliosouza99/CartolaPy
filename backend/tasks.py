@@ -33,7 +33,7 @@ async def update_data_task(
     rodada_id_state["previous"] = old_rodada_id
     rodada_id_state["current"] = new_rodada_id
 
-    if old_rodada_id != new_rodada_id:
+    if old_rodada_id is not None and old_rodada_id != new_rodada_id:
         logger.info("Rodada changed, updating expensive tables")
         await data_loader._update_expensive_tables()
         data_loader.save_all_to_redis(store)

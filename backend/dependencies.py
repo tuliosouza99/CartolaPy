@@ -7,6 +7,10 @@ from .services.redis_store import RedisDataFrameStore
 
 @lru_cache
 def get_redis_store() -> RedisDataFrameStore:
+    from .tkq import broker
+
+    if hasattr(broker.state, "redis_store") and broker.state.redis_store is not None:
+        return broker.state.redis_store
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
     return RedisDataFrameStore(redis_url)
 

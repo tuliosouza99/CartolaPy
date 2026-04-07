@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 
-function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, action, expandable, expandedContent, filterComponent, extraParams, hideCount, hideUpdate, hideTimestamps, defaultSortBy, defaultSortDirection = 'asc', sortBy: controlledSortBy, sortDirection: controlledSortDirection, onSortChange }) {
+function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, action, expandable, expandedContent, filterComponent, extraParams, hideCount, hideUpdate, hideTimestamps, defaultSortBy, defaultSortDirection = 'asc', sortBy: controlledSortBy, sortDirection: controlledSortDirection, onSortChange, expandedRows: controlledExpandedRows, onExpandedRowsChange }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -9,21 +9,25 @@ function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, actio
   const [pageSize] = useState(20)
   const [internalSortBy, setInternalSortBy] = useState(defaultSortBy || null)
   const [internalSortDirection, setInternalSortDirection] = useState(defaultSortDirection)
-  const [expandedRows, setExpandedRows] = useState(new Set())
+  const [internalExpandedRows, setInternalExpandedRows] = useState(new Set())
 
   const sortBy = controlledSortBy !== undefined ? controlledSortBy : internalSortBy
   const sortDirection = controlledSortDirection !== undefined ? controlledSortDirection : internalSortDirection
+  const effectiveExpandedRows = controlledExpandedRows !== undefined ? controlledExpandedRows : internalExpandedRows
 
   const toggleRow = (idx) => {
-    setExpandedRows(prev => {
-      const next = new Set(prev)
-      if (next.has(idx)) {
-        next.delete(idx)
-      } else {
-        next.add(idx)
-      }
-      return next
-    })
+    const newSet = new Set(effectiveExpandedRows)
+    if (newSet.has(idx)) {
+      newSet.delete(idx)
+    } else {
+      newSet.add(idx)
+    }
+    
+    if (controlledExpandedRows !== undefined) {
+      onExpandedRowsChange?.(newSet)
+    } else {
+      setInternalExpandedRows(newSet)
+    }
   }
 
   const fetchData = useCallback(async () => {
@@ -287,7 +291,7 @@ function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, actio
                               padding: '0.25rem',
                               color: 'var(--text-muted)',
                               transition: 'transform 0.2s',
-                              transform: expandedRows.has(idx) ? 'rotate(90deg)' : 'rotate(0deg)',
+                              transform: effectiveExpandedRows.has(idx) ? 'rotate(90deg)' : 'rotate(0deg)',
                             }}
                           >
                             ▶
@@ -307,7 +311,7 @@ function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, actio
                         </td>
                       ))}
                     </tr>
-                    {expandable && expandedRows.has(idx) && (
+                    {expandable && effectiveExpandedRows.has(idx) && (
                       <tr>
                         <td colSpan={columns.length + 1} style={{
                           padding: '0',
