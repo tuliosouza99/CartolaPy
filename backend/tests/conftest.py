@@ -2,9 +2,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import taskiq_fastapi
+from src.tkq import broker
 from taskiq import InMemoryBroker
-
-from backend.tkq import broker
 
 
 @pytest.fixture
@@ -14,7 +13,7 @@ def anyio_backend():
 
 @pytest.fixture
 def fastapi_app():
-    from backend.main import get_app
+    from src.main import get_app
 
     return get_app()
 
@@ -25,7 +24,7 @@ def init_taskiq_deps(fastapi_app):
         taskiq_fastapi.populate_dependency_context(broker, fastapi_app)
         broker.state.fastapi_app = fastapi_app
 
-        from backend.dependencies import get_redis_store
+        from src.dependencies import get_redis_store
 
         get_redis_store.cache_clear()
 

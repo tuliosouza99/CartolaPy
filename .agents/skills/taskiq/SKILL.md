@@ -118,7 +118,7 @@ Brokers send messages to queues and receive them for processing. Built-in option
 - `NatsBroker` - NATS via taskiq-nats
 - `ListQueueBroker` - Redis list-based queue
 
-Production recommended: `taskiq-aio-pika` or `taskiq-nats` for broker, `taskiq-redis` for result backend.
+Production recommended: `taskiq-aio-pika` or `taskiq-nats` for broker, `taskiq-redis` for result src.
 
 ### Kicker
 

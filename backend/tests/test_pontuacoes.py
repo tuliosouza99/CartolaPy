@@ -2,9 +2,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
-
-from backend.services.data_loaders.pontuacoes import Pontuacoes
-from backend.services.enums import Scout
+from src.services.data_loaders.pontuacoes import Pontuacoes
+from src.services.enums import Scout
 
 
 class TestPontuacoes:

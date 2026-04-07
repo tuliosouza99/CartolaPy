@@ -2,8 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
-
-from backend.services.data_loaders.atletas import Atletas
+from src.services.data_loaders.atletas import Atletas
 
 
 class TestAtletas:

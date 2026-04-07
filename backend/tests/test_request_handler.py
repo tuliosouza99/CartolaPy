@@ -1,8 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from backend.services.request_handler import RequestHandler
+from src.services.request_handler import RequestHandler
 
 
 class TestRequestHandler:

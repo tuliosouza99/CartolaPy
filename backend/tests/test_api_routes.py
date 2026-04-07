@@ -3,8 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
-
-from backend.services.enums import Scout
+from src.services.enums import Scout
 
 
 class TestTableResponseStructure:
@@ -371,7 +370,7 @@ class TestConfrontosEndpoint:
         fastapi_app.state.data_loader = mock_data_loader
         fastapi_app.state.redis_store = mock_redis_store
 
-        from backend.tkq import broker
+        from src.tkq import broker
 
         broker.state.redis_store = mock_redis_store
 
@@ -382,7 +381,7 @@ class TestConfrontosEndpoint:
         return TestClient(fastapi_app_with_mock_data)
 
     def test_returns_correct_structure(self, client, fastapi_app_with_mock_data):
-        from backend.tkq import broker
+        from src.tkq import broker
 
         cached_data = [
             {
@@ -423,7 +422,7 @@ class TestConfrontosEndpoint:
         assert mandante_players[1]["apelido"] == "Forward A"
 
     def test_player_structure(self, client, fastapi_app_with_mock_data):
-        from backend.tkq import broker
+        from src.tkq import broker
 
         cached_data = [
             {
@@ -481,7 +480,7 @@ class TestConfrontosEndpoint:
         assert isinstance(data["matches"], list)
 
     def test_fetches_from_api_on_cache_miss(self, client, fastapi_app_with_mock_data):
-        from backend.tkq import broker
+        from src.tkq import broker
 
         def load_json_side_effect(key):
             if key == "partidas:10":
@@ -531,7 +530,7 @@ class TestConfrontosEndpoint:
         assert data["matches"][0]["visitante_id"] == 20
 
     def test_match_includes_partida_id(self, client, fastapi_app_with_mock_data):
-        from backend.tkq import broker
+        from src.tkq import broker
 
         cached_data = [
             {
@@ -574,7 +573,7 @@ class TestConfrontosEndpoint:
 class TestPontosCedidosUnifiedMatchesEndpoint:
     @pytest.fixture
     def fastapi_app_with_mock_data(self, fastapi_app):
-        from backend.services.enums import Scout
+        from src.services.enums import Scout
 
         pontuacoes_df = pd.DataFrame(
             {
@@ -649,7 +648,7 @@ class TestPontosCedidosUnifiedMatchesEndpoint:
         fastapi_app.state.data_loader = mock_data_loader
         fastapi_app.state.redis_store = mock_redis_store
 
-        from backend.tkq import broker
+        from src.tkq import broker
 
         broker.state.redis_store = mock_redis_store
 

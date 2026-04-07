@@ -3,9 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
-
-from backend.dependencies import get_redis_store
-from backend.services.enums import Scout
+from src.dependencies import get_redis_store
+from src.services.enums import Scout
 
 
 class TestAtletasHistoricoEndpoint:

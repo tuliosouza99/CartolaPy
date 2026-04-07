@@ -90,7 +90,7 @@ from typing import Annotated, Literal
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.services.atletas_unified import compute_atletas_unified
+from src.services.atletas_unified import compute_atletas_unified
 ```
 
 ### Type Hints
@@ -310,7 +310,7 @@ function TableView({ data, sortBy, sortDirection, onSortChange }) {
 ```python
 @pytest.fixture
 def fastapi_app():
-    from backend.main import get_app
+    from src.main import get_app
     return get_app()
 
 def test_atletas_returns_correct_structure(client):

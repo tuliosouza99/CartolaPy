@@ -1,8 +1,7 @@
 import pandas as pd
 import pytest
-
-from backend.services.enums import Scout
-from backend.services.pontos_cedidos_unified import compute_pontos_cedidos_unified
+from src.services.enums import Scout
+from src.services.pontos_cedidos_unified import compute_pontos_cedidos_unified
 
 
 class TestComputePontosCedidosUnified:

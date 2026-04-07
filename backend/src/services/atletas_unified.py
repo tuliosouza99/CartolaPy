@@ -3,7 +3,7 @@ from typing import Literal
 
 import pandas as pd
 
-from backend.services.enums import Scout
+from src.services.enums import Scout
 
 
 def normalize_string(s: str) -> str:

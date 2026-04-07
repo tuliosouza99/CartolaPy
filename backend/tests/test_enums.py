@@ -1,4 +1,4 @@
-from backend.services.enums import Scout
+from src.services.enums import Scout
 
 
 class TestScoutEnum:

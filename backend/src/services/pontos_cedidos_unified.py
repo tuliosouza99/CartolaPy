@@ -2,7 +2,7 @@ from typing import Literal
 
 import pandas as pd
 
-from backend.services.enums import Scout
+from src.services.enums import Scout
 
 
 def compute_pontos_cedidos_unified(

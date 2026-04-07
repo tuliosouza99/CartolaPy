@@ -13,9 +13,9 @@ services:
 
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    command: uvicorn backend.main:get_app --host 0.0.0.0 --port 8000
+    command: uvicorn src.main:get_app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     environment:
@@ -40,9 +40,9 @@ services:
 
   taskiq-worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    command: taskiq worker backend.tkq:broker --workers 1
+    command: taskiq worker src.tkq:broker --workers 1
     environment:
       - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=production
@@ -54,9 +54,9 @@ services:
 
   taskiq-scheduler:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    command: taskiq scheduler backend.tkq_sched:scheduler
+    command: taskiq scheduler src.tkq_sched:scheduler
     environment:
       - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=production

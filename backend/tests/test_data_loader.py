@@ -1,8 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from backend.services.data_loaders.data_loader import DataLoader
+from src.services.data_loaders.data_loader import DataLoader
 
 
 class TestDataLoader:
@@ -72,7 +71,7 @@ class TestDataLoader:
     @pytest.fixture
     def data_loader(self, mock_request_handler):
         with patch(
-            "backend.services.data_loaders.data_loader.RequestHandler",
+            "src.services.data_loaders.data_loader.RequestHandler",
             return_value=mock_request_handler,
         ):
             loader = DataLoader()
@@ -123,7 +122,7 @@ class TestDataLoader:
         )
 
         with patch(
-            "backend.services.data_loaders.data_loader.RequestHandler",
+            "src.services.data_loaders.data_loader.RequestHandler",
             return_value=mock_request_handler,
         ):
             loader = DataLoader()

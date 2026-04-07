@@ -1,5 +1,9 @@
 name: Ruff Linter and Formatter
 
+defaults:
+  run:
+    working-directory: ./backend
+
 on: [push, pull_request]
 
 jobs:

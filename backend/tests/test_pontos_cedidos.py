@@ -1,8 +1,7 @@
 import pandas as pd
 import pytest
-
-from backend.services.data_loaders.pontos_cedidos import PontosCedidos
-from backend.services.enums import Scout
+from src.services.data_loaders.pontos_cedidos import PontosCedidos
+from src.services.enums import Scout
 
 
 class TestPontosCedidos:

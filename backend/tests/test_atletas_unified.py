@@ -3,9 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
-
-from backend.dependencies import get_redis_store
-from backend.services.enums import Scout
+from src.dependencies import get_redis_store
+from src.services.enums import Scout
 
 
 class TestAtletasUnifiedEndpoint:
@@ -103,6 +102,7 @@ class TestAtletasUnifiedEndpoint:
 
         mock_redis_store.load_json = MagicMock(side_effect=load_json_side_effect)
         mock_redis_store.exists = MagicMock(return_value=True)
+        mock_redis_store.load_rodada_id = MagicMock(return_value=15)
 
         fastapi_app.state.data_loader = mock_data_loader
         fastapi_app.state.redis_store = mock_redis_store
@@ -312,6 +312,7 @@ class TestMandanteFilter:
 
         mock_redis_store.load_json = MagicMock(side_effect=load_json_side_effect)
         mock_redis_store.exists = MagicMock(return_value=True)
+        mock_redis_store.load_rodada_id = MagicMock(return_value=15)
 
         fastapi_app.state.data_loader = mock_data_loader
         fastapi_app.state.redis_store = mock_redis_store

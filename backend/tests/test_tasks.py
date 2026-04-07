@@ -1,12 +1,11 @@
 import pytest
+from src.tkq import broker
 from taskiq import InMemoryBroker
-
-from backend.tkq import broker
 
 
 class TestUpdateDataScheduledTask:
     def test_task_is_scheduled_with_5_min_cron(self):
-        from backend.tasks import update_data_task
+        from src.tasks import update_data_task
 
         schedules = update_data_task.labels.get("schedule", [])
         assert len(schedules) > 0, "Task should have at least one schedule"
@@ -18,7 +17,7 @@ class TestUpdateDataScheduledTask:
         assert "*/5" in cron_expr, f"Task should run every 5 minutes, got: {cron_expr}"
 
     def test_task_is_registered_in_broker(self):
-        from backend.tasks import update_data_task
+        from src.tasks import update_data_task
 
         all_tasks = broker.get_all_tasks()
         assert update_data_task.task_name in all_tasks, (
@@ -27,7 +26,7 @@ class TestUpdateDataScheduledTask:
 
     @pytest.mark.anyio
     async def test_task_updates_rodada_id_state(self, fastapi_app):
-        from backend.tasks import update_data_task
+        from src.tasks import update_data_task
 
         result = await update_data_task.kiq()
         await result.wait_result()
@@ -37,7 +36,7 @@ class TestUpdateDataScheduledTask:
 
     @pytest.mark.anyio
     async def test_task_calls_fill_atletas(self, fastapi_app):
-        from backend.tasks import update_data_task
+        from src.tasks import update_data_task
 
         result = await update_data_task.kiq()
         await result.wait_result()
@@ -46,8 +45,8 @@ class TestUpdateDataScheduledTask:
 
     @pytest.mark.anyio
     async def test_task_calls_expensive_update_when_rodada_changed(self, fastapi_app):
-        from backend.tasks import update_data_task
-        from backend.tkq import broker
+        from src.tasks import update_data_task
+        from src.tkq import broker
 
         new_state = {"current": 10, "previous": None}
         fastapi_app.state.rodada_id_state = new_state
@@ -63,7 +62,7 @@ class TestUpdateDataScheduledTask:
 
     @pytest.mark.anyio
     async def test_task_returns_rodada_id_when_unchanged(self, fastapi_app):
-        from backend.tasks import update_data_task
+        from src.tasks import update_data_task
 
         result = await update_data_task.kiq()
         task_result = await result.wait_result()
