@@ -1,42 +1,115 @@
 # CartolaPy
 
-Aplicativo Streamlit para visualização e análise de dados extraídos da API oficial do Cartola FC.
+A full-stack application for visualizing and analyzing data from the Cartola FC fantasy football API.
 
-## Instalação e Execução
+## Tech Stack
 
-1. Clone o repositório
-2. Crie um ambiente virtual e instale as dependências
+**Backend**: FastAPI + Redis + Taskiq  
+**Frontend**: React + Vite
+
+## Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+- Docker (for Redis)
+
+## Quick Start
+
 ```bash
-conda create -n cartolapy python=3.10
-conda activate cartolapy
-pip install -r requirements.txt
+# 1. Clone the repo
+git clone https://github.com/tuliosouza99/CartolaPy.git
+cd CartolaPy
+
+# 2. Start Redis
+docker-compose up -d redis
+
+# 3. Backend setup
+uv sync && source .venv/bin/activate
+cd backend && uvicorn main:app --reload --port 8000
+
+# 4. Frontend setup (in a new terminal)
+cd frontend
+npm install
+npm run dev
 ```
 
-3. Execute o comando `streamlit run CartolaPy.py` e utilize o aplicativo.
+Open http://localhost:5173 in your browser.
 
-## Funcionalidades
+## Project Structure
 
-🚀 Veja a **média**, **média básica** (média sem considerar os scouts G, A, FT, PP, DP, SG, CV e GC) e **desvio padrão** das pontuações dos atletas em diferentes condições: atuando como **mandante**, atuando como **visitante** e/ou em um **intervalo** X de rodadas.
+```
+backend/
+├── main.py              # FastAPI app factory
+├── lifespan.py          # Startup/shutdown handlers
+├── dependencies.py      # FastAPI DI
+├── tkq.py               # Taskiq broker
+├── tkq_sched.py         # Taskiq scheduler
+├── tasks.py             # Background tasks
+├── api/
+│   ├── routes.py        # REST endpoints
+│   └── models.py        # Pydantic models
+└── services/
+    ├── atletas_unified.py
+    ├── pontos_cedidos_unified.py
+    ├── enums.py
+    ├── redis_store.py
+    ├── request_handler.py
+    └── data_loaders/
 
-<details>
-<summary>Dica</summary>
+frontend/
+├── src/
+│   ├── App.jsx
+│   ├── pages/
+│   │   ├── AtletasUnified.jsx
+│   │   ├── PontosCedidosUnified.jsx
+│   │   └── ...
+│   └── components/
+│       ├── TableView.jsx
+│       ├── FilterSidebar.jsx
+│       ├── Navbar.jsx
+│       └── ...
 
-Você pode combinar o intervalo de rodadas com as condições de mandante e visitante para obter informações mais específicas, como as pontuações de um jogador nas últimas 3 rodadas!
-</details>
-<br>
+tests/                   # Pytest suite
+```
 
-![Captura de tela 2023-06-25 184045](https://github.com/tuliosouza99/CartolaPy/assets/49206513/6461a5f9-3889-4124-9ef4-1f1613ce620e)
+## Available Scripts
 
+### Backend
+```bash
+ruff check .                    # Lint
+ruff format --check .           # Check formatting
+ruff check --fix . && ruff format .  # Auto-fix
 
-🧪 Filtre os jogadores por **posição**, **clube**, **status** (provável, dúvida, suspenso, contundido ou nulo) e/ou **preço** (em cartoletas).
+pytest                          # Run tests
+pytest --cov=backend            # With coverage
+```
 
-![Captura de tela 2023-06-25 183556](https://github.com/tuliosouza99/CartolaPy/assets/49206513/61ee3877-0e14-4750-ab26-13bf6f4548f7)
+### Frontend
+```bash
+npm run dev      # Dev server (port 5173)
+npm run build    # Production build
+npm run preview  # Preview production build
+```
 
-📈 Compare os **scouts** de até **5** jogadores com base nas condições de mandante, visitante e/ou intervalo de rodadas.
+## Features
 
-![Captura de tela 2023-06-25 183421](https://github.com/tuliosouza99/CartolaPy/assets/49206513/8643a3f8-a695-465d-9801-0ab193e39169)
+- **AtletasUnified**: View player statistics with filters for position, club, status, and price range
+- **PontosCedidosUnified**: View points ceded by each team for specific positions
+- **Confrontos**: Match predictions and analysis
+- **Pontuacoes**: Round-by-round scoring data
+- Filter by round range, home/away conditions
+- Sort and paginate results
+- Dark/light theme toggle
+- URL-based filter state (shareable/bookmarkable links)
 
-🧮 Veja os **pontos cedidos** por cada time para uma determinada **posição** com base nas condições de mandante, visitante e/ou intervalo de rodadas.
+## Environment Variables
 
-![Captura de tela 2023-06-25 184131](https://github.com/tuliosouza99/CartolaPy/assets/49206513/56847862-cb85-46e4-80ea-e22f38560c6e)
+- `ENVIRONMENT=pytest` for test mode
+- Redis connection required for data storage
 
+## API Endpoints
+
+- `GET /api/tables/atletas` - Player data
+- `GET /api/tables/pontos-cedidos` - Points ceded data
+- `GET /api/status` - Current round status
+- `POST /api/update/atletas` - Trigger data update

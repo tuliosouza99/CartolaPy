@@ -1,235 +1,327 @@
 # AGENTS.md
 
-## Project Overview
-
-CartolaPy is a Streamlit application for visualization and analysis of data extracted from the official Cartola FC API (Brazilian football/soccer fantasy app). The project uses Python with async/await patterns, pandas, numpy, and plotly for data visualization.
+CartolaPy is a full-stack app for visualizing/analysis of Cartola FC API data. Backend: FastAPI + Redis + taskiq. Frontend: React + Vite.
 
 ## Project Structure
-
 ```
-CartolaPy/
-├── CartolaPy.py           # Main Streamlit app entry point
-├── plotter.py             # Plotting functions using plotly
+backend/
+├── main.py              # FastAPI app factory (get_app())
+├── lifespan.py          # Startup/shutdown handlers
+├── dependencies.py      # FastAPI DI
+├── tkq.py               # Taskiq broker
+├── tkq_sched.py         # Taskiq scheduler
+├── tasks.py             # Background tasks
+├── api/
+│   ├── routes.py        # REST endpoints
+│   └── models.py        # Pydantic models
+└── services/
+    ├── atletas_unified.py
+    ├── pontos_cedidos_unified.py
+    ├── enums.py         # Scout enum, data paths
+    ├── redis_store.py
+    ├── request_handler.py
+    └── data_loaders/    # Data loading from Redis
+
+frontend/
 ├── src/
-│   ├── enums.py           # Scout, DataPath, UpdateTablesMsg enums
-│   ├── utils.py           # Utility functions (API calls, data processing)
-│   ├── atletas_updater.py # Updates player data from API
-│   ├── confrontos_or_mandos_updater.py  # Updates match/home-away data
-│   ├── pontos_cedidos_updater.py        # Updates points cedidos (given up)
-│   ├── pontuacoes_updater.py            # Updates scores and scouts
-│   └── pre_season/
-│       ├── dfs_creator.py   # Creates initial dataframes
-│       └── dicts_creator.py  # Creates lookup dictionaries
-├── data/                  # Runtime data (CSV, JSON, Parquet)
-├── tests/                 # Test files (currently empty)
-└── pyproject.toml         # Project configuration
+│   ├── App.jsx          # Main app with routing
+│   ├── pages/           # Page components
+│   │   ├── AtletasUnified.jsx
+│   │   ├── PontosCedidosUnified.jsx
+│   │   └── ...
+│   └── components/      # Reusable components
+│       ├── TableView.jsx
+│       ├── FilterSidebar.jsx
+│       ├── RoundIntervalSlider.jsx
+│       ├── Navbar.jsx
+│       └── ...
+├── package.json
+└── vite.config.js
+
+tests/                   # Pytest suite
+├── conftest.py          # Shared fixtures
+├── test_api_routes.py
+└── ... (other test files)
 ```
 
 ## Build/Lint/Test Commands
 
 ### Environment Setup
 ```bash
-# Create conda environment (as specified in README)
-conda create -n cartolapy python=3.10
-conda activate cartolapy
-pip install -r requirements.txt
-
-# Or using the existing venv
-source .venv/bin/activate
+uv sync && source .venv/bin/activate  # or: source .venv/bin/activate
 ```
 
-### Linting and Formatting
+### Python
 ```bash
-# Run ruff linter
-ruff check .
+ruff check .                    # lint entire project
+ruff format --check .           # check formatting
+ruff check --fix . && ruff format .  # auto-fix lint and format
 
-# Run ruff formatter (check only)
-ruff format --check .
-
-# Auto-fix and format
-ruff check --fix .
-ruff format .
+pytest                          # run all tests
+pytest tests/test_api_routes.py # single file
+pytest -k "pattern"             # matching pattern
+pytest -v                       # verbose output
+pytest --cov=backend            # with coverage
 ```
 
-### Running the Application
+### Frontend
 ```bash
-streamlit run CartolaPy.py
+cd frontend
+npm install
+npm run dev      # dev server (port 5173)
+npm run build    # production build
+npm run preview  # preview production build
 ```
 
-### Testing
+### Running
 ```bash
-# Run all tests
-pytest
-
-# Run a single test file
-pytest tests/test_file.py
-
-# Run tests matching a pattern
-pytest -k "test_pattern"
-
-# Run with verbose output
-pytest -v
-
-# Run with coverage (if added)
-pytest --cov=src --cov-report=html
+docker-compose up -d redis     # start Redis
+cd backend && uvicorn main:app --reload --port 8000  # backend
+cd frontend && npm run dev    # frontend (separate terminal)
 ```
 
-## Code Style Guidelines
+## Code Style
 
-### Import Organization
-Organize imports in three groups with blank lines between:
-1. Standard library imports
-2. Third-party imports (aiohttp, pandas, numpy, etc.)
-3. Local/application imports
-
+### Python Imports (3 groups, blank line between)
 ```python
-# Standard library
-import json
-import asyncio
-from collections.abc import Mapping
-from typing import Iterable
+from datetime import datetime, timezone
+from typing import Annotated, Literal
 
-# Third-party
-import aiohttp
-import aiofiles
-import numpy as np
 import pandas as pd
-from aiolimiter import AsyncLimiter
-from stqdm import stqdm
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-# Local imports
-from src.enums import Scout, DataPath
-from src.utils import get_page_json
+from backend.services.atletas_unified import compute_atletas_unified
 ```
 
 ### Type Hints
-- Use type hints for function parameters and return types
-- Use `|` for union types (Python 3.10+): `dict[int, str]`
-- Use `None` instead of `Optional[T]` for optional parameters
-- Use `tuple` for fixed-length tuples
-
-```python
-# Good
-async def get_page_json(url: str) -> dict:
-def load_dict(name: str) -> dict[int, str]:
-def create_df(atletas: pd.DataFrame) -> pd.DataFrame:
-
-# Union types
-def get_basic_points(scouts: dict | float | None):
-def update_table(self, rodadas: int | Iterable[int]):
-```
+- Use `|` for unions: `dict[int, str]`, `str | None`
+- Use `Annotated` for FastAPI DI
+- Use `Literal` for exhaustive string unions
+- Avoid `Optional[X]` in favor of `X | None`
 
 ### Naming Conventions
-- **Classes**: `PascalCase` (e.g., `Scout`, `ConfrontosOrMandosUpdater`)
-- **Functions/methods**: `snake_case` (e.g., `get_page_json`, `load_dict_async`)
-- **Variables**: `snake_case` (e.g., `pontuacoes_df`, `clube_id`)
-- **Constants**: `SCREAMING_SNAKE_CASE` or descriptive lowercase (e.g., `PRECO_MIN`, `rate_limiter`)
-- **Enums**: `PascalCase` for enum names, `SCREAMING_SNAKE_CASE` for values by convention
-- **Avoid single-letter variable names** except in comprehensions or well-known contexts
+- **Classes**: `PascalCase` (DataLoader, Scout)
+- **Functions/methods**: `snake_case` (get_atletas, compute_atletas_unified)
+- **Variables**: `snake_case` (atletas_df, paginated_df)
+- **Constants**: `SCREAMING_SNAKE_CASE` or lowercase
 
-### Enum Usage
-```python
-class Scout(Enum):
-    G = {'name': 'Gol', 'value': 8}
-    A = {'name': 'Assistência', 'value': 5}
-    # ... other scouts
-
-    @classmethod
-    def as_basic_scouts_list(cls):
-        return [
-            scout.name
-            for scout in cls
-            if scout.name not in ('G', 'A', 'FT', 'PP', 'DP', 'SG', 'CV', 'GC')
-        ]
-
-class DataPath(Enum):
-    ATLETAS = 'data/csv/atletas.csv'
-    # ... other paths
-
-    @classmethod
-    def as_list(cls):
-        return [path.value for path in cls]
-```
-
-### Async/Await Patterns
-- Use `async/await` for I/O-bound operations (API calls, file operations)
-- Use `asyncio.gather()` for concurrent operations
-- Use `asyncio.to_thread()` for CPU-bound operations in async context
-- Use `aiofiles` for async file operations
-
+### Async/Await
 ```python
 async def update_atletas():
-    json = await get_page_json('https://api.cartola.globo.com/atletas/mercado')
-    # ...
+    await data_loader.atletas.fill_atletas()
+    data_loader.atletas.save_to_redis(store)
 
-async def update_tables(rodada: list[int] | int):
-    await asyncio.gather(
-        create_dicts(),
-        update_atletas(),
-        # ...
+async def fetch_partidas_from_cartola(request_handler, rodada: int) -> list[dict]:
+    page_json = await request_handler.make_get_request(
+        f"https://api.cartola.globo.com/partidas/{rodada}"
     )
 ```
 
 ### Error Handling
-- Use specific exception types when catching
-- Handle None and NaN values explicitly
-- Use `np.isnan()` for numpy floats, `isinstance(x, Mapping)` for dict-like objects
+- Raise `HTTPException` for API errors
+- Use specific exception types
+- Handle None/NaN explicitly: `pd.notna()`, `isinstance()`
 
 ```python
-def get_basic_points(scouts: dict | float | None):
-    if not isinstance(scouts, Mapping) and (scouts is None or np.isnan(scouts)):
-        return np.nan
-    # ...
+if sort_by is not None:
+    if sort_by not in df.columns:
+        raise HTTPException(status_code=422, detail=f"Invalid sort_by: {sort_by}")
 ```
 
-### Data Processing with Pandas
-- Method chaining with `.pipe()` for readable transformations
-- Use `.assign()` for adding columns
-- Use `df.loc[]` and `df.iloc[]` for conditional updates
-- Use `stqdm` for progress bars in async loops
-
+### Pandas
 ```python
 df = (
-    pd.DataFrame(json['atletas'])
-    .sort_values(by=['atleta_id'])
-    .reset_index(drop=True)
-    .pipe(some_function, arg1, arg2)
+    atletas_df.sort_values("rodada_id", ascending=False)
+    .drop_duplicates(subset=["atleta_id"], keep="first")
+    .merge(pont_agg, on="atleta_id", how="left")
 )
-
-# Async with progress
-await asyncio.gather(
-    *[update_function(rodada) for rodada in stqdm(range(1, 38), desc='Updating...')]
-)
+offset = (page - 1) * page_size
+paginated_df = df.iloc[offset : offset + page_size]
 ```
 
-### Streamlit Usage
-- Use `st.cache_resource` for expensive computations that don't change per-user
-- Use containers and expanders for organization
-- Use sidebar for controls
+## Frontend State Persistence (Filter/Sort State)
+
+### Overview
+Filter and sort state persist across page navigation using a dual-sessionStorage + URL params strategy. This ensures state survives page reloads and bookmarking.
+
+### Persistence Strategy
+1. **URL params** - Primary for shareable/bookmarkable state
+2. **sessionStorage** - Fallback for in-session navigation
+3. **Default values** - Only non-default values appear in URL
+
+### Filter State Keys
+| State Key | Default | URL Param | Notes |
+|-----------|---------|-----------|-------|
+| `rodadaRange.min` | `1` | `rodada_min` | |
+| `rodadaRange.max` | `statusData.rodada_atual` | `rodada_max` | |
+| `isMandante` | `"geral"` | `is_mandante` | Values: `"geral"`, `"mandante"`, `"visitante"` |
+| `filters.search` | `""` | `search` | |
+| `filters.clube_ids` | `[]` | `clube_ids` | CSV: `"1,2,3"` |
+| `filters.posicao_ids` | `[]` | `posicao_ids` | CSV |
+| `filters.status_ids` | `[]` | `status_ids` | CSV |
+| `filters.preco_min` | `0` | `preco_min` | |
+| `filters.preco_max` | `30` | `preco_max` | |
+| `sortBy` | `"media"` | `sort_by` | Atletas |
+| `sortDirection` | `"desc"` | `sort_direction` | Values: `"asc"`, `"desc"` |
+
+### URL Restore Pattern
+Use `urlRestored` ref to prevent premature URL updates before initial restore completes:
+
+```javascript
+const urlRestored = useRef(false);
+
+useEffect(() => {
+  // Fetch initial data and restore URL state
+  fetchStatus();
+  fetchFilterOptions();
+}, []);
+
+useEffect(() => {
+  // Parse URL params on mount
+  const params = new URLSearchParams(window.location.search);
+  const urlState = {};
+  if (params.get("rodada_min")) urlState.rodada_min = parseInt(params.get("rodada_min"), 10);
+  // ... parse other params
+
+  // Also check sessionStorage as fallback
+  if (Object.keys(urlState).length === 0) {
+    const saved = sessionStorage.getItem(ROUTE);
+    if (saved) {
+      // parse saved params
+    }
+  }
+
+  // Apply restored state
+  if (Object.keys(urlState).length > 0) {
+    setRodadaRange({ min: urlState.rodada_min ?? 1, max: urlState.rodada_max ?? 1 });
+    setFilters(prev => ({ ...prev, ...urlState }));
+    if (urlState.sort_by) setSortBy(urlState.sort_by);
+    if (urlState.sort_direction) setSortDirection(urlState.sort_direction);
+  }
+  urlRestored.current = true;
+}, []);
+```
+
+### URL Sync Effect
+Only write to URL after initial restore is complete:
+
+```javascript
+useEffect(() => {
+  if (!urlRestored.current) return;
+
+  const params = new URLSearchParams();
+  if (rodadaRange.min !== 1) params.set("rodada_min", rodadaRange.min);
+  if (rodadaRange.max !== statusData?.rodada_atual) params.set("rodada_max", rodadaRange.max);
+  if (isMandante !== "geral") params.set("is_mandante", isMandante);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.clube_ids?.length) params.set("clube_ids", filters.clube_ids.join(","));
+  // ... other non-default params
+
+  const queryString = params.toString();
+  sessionStorage.setItem(ROUTE, queryString);
+
+  const newUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+  window.history.replaceState({}, "", newUrl);
+}, [rodadaRange, isMandante, filters, statusData, sortBy, sortDirection]);
+```
+
+### "Redefinir Filtros" (Reset Filters) Pattern
+```javascript
+const redefinirFiltros = useCallback(() => {
+  setRodadaRange({ min: 1, max: statusData?.rodada_atual || 1 });
+  setIsMandante("geral");
+  setFilters(prev => ({
+    ...DEFAULT_FILTERS,
+    options: prev.options,  // preserve loaded options
+  }));
+  setSortBy("media");
+  setSortDirection("desc");
+  sessionStorage.removeItem(ROUTE);
+  window.history.replaceState({}, "", window.location.pathname);
+}, [statusData]);
+```
+
+### Navigation Pattern
+**IMPORTANT**: Use `window.location.href` instead of React Router `<Link>` for page navigation. React Router with `<Link>` does not cause component remounting, which means useEffect hooks don't re-fire and state doesn't re-restore from URL.
+
+```javascript
+// In Navbar.jsx
+<button onClick={() => window.location.href = '/atletas'}>
+  Atletas
+</button>
+
+// NOT: <Link to="/atletas">Atletas</Link>
+```
+
+### Sort State in TableView
+TableView should receive controlled sort props from parent. Internal table sort state resets on re-render, so lift state to parent:
+
+```javascript
+// Parent (page component)
+const [sortBy, setSortBy] = useState("media");
+const [sortDirection, setSortDirection] = useState("desc");
+
+// Pass to TableView
+<TableView
+  data={data}
+  sortBy={sortBy}
+  sortDirection={sortDirection}
+  onSortChange={(col) => {
+    if (col === sortBy) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(col);
+      setSortDirection("desc");
+    }
+  }}
+/>
+
+// TableView receives and uses props
+function TableView({ data, sortBy, sortDirection, onSortChange }) {
+  // Use sortBy/sortDirection from props, not internal state
+  const sortedData = useMemo(() => {
+    return [...data].sort((a, b) => {
+      const aVal = a[sortBy];
+      const bVal = b[sortBy];
+      // ...
+    });
+  }, [data, sortBy, sortDirection]);
+}
+```
+
+### Default Sort Values
+- **AtletasUnified**: `sortBy="media"`, `sortDirection="desc"`
+- **PontosCedidosUnified**: `sortBy="media_cedida"`, `sortDirection="desc"`
+
+## React/Frontend Conventions
+- Functional components with hooks
+- React Context for global state (theme)
+- CSS variables in `index.css` for theming
+- Use `data-theme` attribute for dark/light mode
+- Use `useCallback` for event handlers passed to children
+- Use `useMemo` for expensive computations
+
+## Testing
+- `pytest` with `pytest-asyncio` for async
+- `conftest.py` fixtures: `anyio_backend`, `fastapi_app`, `init_taskiq_deps`
+- Use `unittest.mock.AsyncMock` and `MagicMock`
+- Use `fastapi.testclient.TestClient` for API testing
 
 ```python
-@st.cache_resource(max_entries=MAX_CACHE_ENTRIES)
-def plot_atletas_geral(atletas_df: pd.DataFrame, ...):
-    # cached function
-    ...
+@pytest.fixture
+def fastapi_app():
+    from backend.main import get_app
+    return get_app()
+
+def test_atletas_returns_correct_structure(client):
+    response = client.get("/api/tables/atletas")
+    assert response.status_code == 200
 ```
 
-## Current Linting Issues
-
-Running `ruff check .` produces 1 error:
-- **E741**: Ambiguous variable name `I` in `src/enums.py:13` - the letter 'I' looks like numeral 1
-
-Running `ruff format --check .` shows 10 files need reformatting.
-
-## Known Limitations
-
-- **No tests exist** - the `tests/` directory is empty
-- **No mypy/type checking** configured
-- **No pre-commit hooks** configured
-
-## Development Notes
-
-- The project uses `uv.lock` suggesting `uv` for dependency management
-- Data files are stored in `data/` directory (gitignored)
-- Uses Brazilian Portuguese in some comments and UI strings
-- API calls are rate-limited with `AsyncLimiter(10, 1)` (10 requests per second)
+## Notes
+- **Redis**: Required; use `docker-compose up -d redis`
+- **Taskiq**: Async task queue for background jobs
+- **Rate Limiting**: ~10 req/sec via `AsyncLimiter`
+- **Environment**: Tests run with `ENVIRONMENT=pytest`
+- **Backend hot reload**: `uvicorn main:app --reload` works for most changes
+- **Docker rebuild**: Use `docker compose up -d --build` to force container rebuild

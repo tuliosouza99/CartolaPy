@@ -1,43 +1,64 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-import pandas as pd
+import taskiq_fastapi
+from taskiq import InMemoryBroker
+
+from backend.tkq import broker
 
 
 @pytest.fixture
-def sample_mandos_df():
-    return pd.DataFrame(
-        {
-            "clube_id": [1, 1, 1, 2, 2, 3, 3],
-            "rodada": [1, 3, 5, 2, 4, 1, 2],
-            "mando": [1, 1, 1, 1, 1, 1, 0],
-        }
-    )
+def anyio_backend():
+    return "asyncio"
 
 
 @pytest.fixture
-def sample_atletas_df():
-    return pd.DataFrame(
-        {
-            "atleta_id": [1, 2, 3, 4],
-            "apelido": ["Player A", "Player B", "Player C", "Player D"],
-            "clube_id": [1, 1, 2, 2],
-            "posicao_id": [1, 2, 1, 3],
-            "status_id": [1, 2, 1, 3],
-            "preco_num": [10.0, 20.0, 30.0, 5.0],
-            "Média": [5.0, 6.0, 7.0, 2.0],
-            "Média Básica": [4.0, 5.0, 6.0, 1.0],
-            "Desvio Padrão": [1.0, 1.5, 2.0, 0.5],
-            "Jogos": [10, 15, 20, 5],
-        }
-    )
+def fastapi_app():
+    from backend.main import get_app
+
+    return get_app()
 
 
-@pytest.fixture
-def sample_scouts_dict():
-    return {
-        "DS": 3,
-        "FS": 2,
-        "FF": 1,
-        "FD": 2,
-        "G": 1,
-        "A": 1,
-    }
+@pytest.fixture(autouse=True)
+def init_taskiq_deps(fastapi_app):
+    if isinstance(broker, InMemoryBroker):
+        taskiq_fastapi.populate_dependency_context(broker, fastapi_app)
+        broker.state.fastapi_app = fastapi_app
+
+        from backend.dependencies import get_redis_store
+
+        get_redis_store.cache_clear()
+
+        mock_atletas = MagicMock()
+        mock_atletas.rodada_id = 15
+        mock_atletas.fill_atletas = AsyncMock(return_value=None)
+
+        mock_confrontos = MagicMock()
+        mock_confrontos.df = MagicMock()
+        mock_confrontos.fill_confrontos = AsyncMock(return_value=None)
+
+        mock_pontuacoes = MagicMock()
+        mock_pontuacoes.df = MagicMock()
+        mock_pontuacoes.fill_pontuacoes = AsyncMock(return_value=None)
+
+        mock_pontos_cedidos = MagicMock()
+        mock_pontos_cedidos.df = MagicMock()
+        mock_pontos_cedidos.fill_pontos_cedidos = MagicMock()
+
+        mock_data_loader = MagicMock()
+        mock_data_loader.atletas = mock_atletas
+        mock_data_loader.confrontos = mock_confrontos
+        mock_data_loader.pontuacoes = mock_pontuacoes
+        mock_data_loader.pontos_cedidos = mock_pontos_cedidos
+        mock_data_loader.fill_data = AsyncMock(return_value=None)
+        mock_data_loader._update_expensive_tables = AsyncMock(return_value=None)
+
+        mock_rodada_id_state = {"current": 15, "previous": 15}
+        mock_redis_store = MagicMock()
+
+        fastapi_app.state.data_loader = mock_data_loader
+        fastapi_app.state.rodada_id_state = mock_rodada_id_state
+        broker.state.rodada_id_state = mock_rodada_id_state
+        broker.state.redis_store = mock_redis_store
+    yield
+    broker.custom_dependency_context = {}

@@ -163,5 +163,11 @@ cython_debug/
 .vscode/
 
 # Data
-data/
 .DS_Store
+
+# Marimo
+__marimo__/
+
+# playwright
+.playwright/
+.playwright-cli
