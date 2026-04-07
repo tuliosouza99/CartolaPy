@@ -10,6 +10,8 @@ from ..services.atletas_unified import compute_atletas_unified
 from ..services.pontos_cedidos_unified import compute_pontos_cedidos_unified
 from ..services.redis_store import RedisDataFrameStore
 from .models import (
+    AtletaHistoricoItem,
+    AtletaHistoricoResponse,
     ConfrontoMatchResponse,
     ConfrontosResponse,
     IsMandante,
@@ -499,6 +501,120 @@ async def get_atletas_unified(
         sort_by=sort_by,
         sort_direction=sort_direction.value if sort_direction else None,
     )
+
+
+@router.get(
+    "/tables/atletas/{atleta_id}/historico", response_model=AtletaHistoricoResponse
+)
+async def get_atleta_historico(
+    atleta_id: int,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+    rodada_min: int = Query(default=1, ge=1),
+    rodada_max: int | None = None,
+    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+):
+    rodada_atual = store.load_rodada_id() or 1
+    if rodada_max is None:
+        rodada_max = rodada_atual
+
+    pontuacoes_df = data_loader.pontuacoes.df
+    confrontos_df = data_loader.confrontos.df
+    clubes_cache = store.load_json("clubes") or {}
+
+    filtered = pontuacoes_df[
+        (pontuacoes_df["atleta_id"].astype(str) == str(atleta_id))
+        & (pontuacoes_df["rodada_id"] >= rodada_min)
+        & (pontuacoes_df["rodada_id"] <= rodada_max)
+    ].copy()
+
+    if filtered.empty:
+        return AtletaHistoricoResponse(atleta_id=atleta_id, historico=[])
+
+    filtered = filtered.merge(
+        confrontos_df[
+            ["partida_id", "opponent_clube_id", "clube_id", "rodada_id", "is_mandante"]
+        ],
+        on=["clube_id", "rodada_id"],
+        how="left",
+    )
+
+    if is_mandante == IsMandante.MANDANTE:
+        filtered = filtered[filtered["is_mandante"]]
+    elif is_mandante == IsMandante.VISITANTE:
+        filtered = filtered[~filtered["is_mandante"]]
+
+    scout_cols = [
+        "G",
+        "A",
+        "FT",
+        "FD",
+        "FF",
+        "FS",
+        "PS",
+        "V",
+        "I",
+        "PP",
+        "DS",
+        "SG",
+        "DE",
+        "DP",
+        "CV",
+        "CA",
+        "FC",
+        "GC",
+        "GS",
+        "PC",
+    ]
+
+    results = []
+    for _, row in filtered.iterrows():
+        opponent_clube_id = (
+            int(row["opponent_clube_id"])
+            if pd.notna(row["opponent_clube_id"])
+            else None
+        )
+        opponent_clube_data = (
+            clubes_cache.get(str(opponent_clube_id), {}) if opponent_clube_id else {}
+        )
+        opponent_nome = opponent_clube_data.get("nome", "")
+        opponent_escudo = (
+            opponent_clube_data.get("escudos", {}).get("60x60", "")
+            if opponent_clube_data
+            else ""
+        )
+
+        scouts = {}
+        for scout in scout_cols:
+            val = row.get(scout, 0)
+            if pd.notna(val) and int(val) != 0:
+                scouts[scout] = int(val)
+
+        results.append(
+            AtletaHistoricoItem(
+                rodada_id=int(row["rodada_id"]),
+                partida_id=int(row.get("partida_id_y", row.get("partida_id", 0)))
+                if pd.notna(row.get("partida_id_y", row.get("partida_id")))
+                else 0,
+                pontuacao=float(row["pontuacao"])
+                if pd.notna(row["pontuacao"])
+                else 0.0,
+                pontuacao_basica=float(row["pontuacao_basica"])
+                if pd.notna(row["pontuacao_basica"])
+                else 0.0,
+                is_mandante=bool(row["is_mandante"])
+                if pd.notna(row["is_mandante"])
+                else True,
+                opponent_clube_id=opponent_clube_id or 0,
+                opponent_nome=opponent_nome,
+                opponent_escudo=opponent_escudo,
+                scouts=scouts,
+            )
+        )
+
+    results.sort(key=lambda x: x.rodada_id, reverse=True)
+
+    return AtletaHistoricoResponse(atleta_id=atleta_id, historico=results)
 
 
 @router.get("/tables/pontos-cedidos-unified", response_model=TableResponse)

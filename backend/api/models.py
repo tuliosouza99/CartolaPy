@@ -114,3 +114,20 @@ class MatchPontosCedidosResponse(BaseModel):
 
 class MatchPontosCedidosListResponse(BaseModel):
     matches: list[MatchPontosCedidosResponse]
+
+
+class AtletaHistoricoItem(BaseModel):
+    rodada_id: int
+    partida_id: int
+    pontuacao: float
+    pontuacao_basica: float
+    is_mandante: bool
+    opponent_clube_id: int
+    opponent_nome: str
+    opponent_escudo: str
+    scouts: dict[str, int]
+
+
+class AtletaHistoricoResponse(BaseModel):
+    atleta_id: int
+    historico: list[AtletaHistoricoItem]

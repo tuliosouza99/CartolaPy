@@ -3,6 +3,7 @@ import TableView from "../components/TableView";
 import FilterSidebar from "../components/FilterSidebar";
 import RoundIntervalSlider from "../components/RoundIntervalSlider";
 import MandoToggle from "../components/MandoToggle";
+import AtletaCharts from "../components/AtletaCharts";
 
 const STATUS_COLORS = {
   green: "#22c55e",
@@ -277,59 +278,64 @@ function AtletasUnified() {
       ([_, value]) => value > 0,
     );
 
-    if (scoutEntries.length === 0) {
-      return (
-        <div style={{ padding: "1rem", color: "var(--text-muted)" }}>
-          Nenhum scout registrado
-        </div>
-      );
-    }
-
     return (
       <div style={{ padding: "1rem" }}>
-        <div
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "0.75rem",
-            fontWeight: 600,
-            color: "var(--text-secondary)",
-            marginBottom: "0.5rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}
-        >
-          Scouts
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.5rem",
-          }}
-        >
-          {scoutEntries.map(([key, value]) => (
-            <span
-              key={key}
+        {scoutEntries.length > 0 && (
+          <>
+            <div
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                padding: "0.25rem 0.5rem",
-                background: "var(--bg-card)",
-                borderRadius: "var(--radius-sm)",
-                fontFamily: "var(--font-mono)",
+                fontFamily: "var(--font-display)",
                 fontSize: "0.75rem",
-                color: "var(--text-primary)",
+                fontWeight: 600,
+                color: "var(--text-secondary)",
+                marginBottom: "0.5rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
               }}
             >
-              <span style={{ fontWeight: 600 }}>{key}</span>
-              <span style={{ color: "var(--orange)" }}>{value}</span>
-            </span>
-          ))}
-        </div>
+              Scouts
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.5rem",
+                marginBottom: "0.5rem",
+              }}
+            >
+              {scoutEntries.map(([key, value]) => (
+                <span
+                  key={key}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    padding: "0.25rem 0.5rem",
+                    background: "var(--bg-card)",
+                    borderRadius: "var(--radius-sm)",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "0.75rem",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>{key}</span>
+                  <span style={{ color: "var(--orange)" }}>{value}</span>
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+
+        <AtletaCharts
+          atleta_id={row.atleta_id}
+          rodadaRange={rodadaRange}
+          isMandante={isMandante}
+          media={row.media}
+          media_basica={row.media_basica}
+        />
       </div>
     );
-  }, []);
+  }, [rodadaRange, isMandante]);
 
   const topBarComponent = useMemo(
     () => (

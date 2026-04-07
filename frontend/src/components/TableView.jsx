@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 
-function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, action, expandable, expandedContent, filterComponent, extraParams, hideCount, hideUpdate, hideTimestamps, defaultSortBy, defaultSortDirection = 'asc', sortBy: controlledSortBy, sortDirection: controlledSortDirection, onSortChange, expandedRows: controlledExpandedRows, onExpandedRowsChange }) {
+function TableView({ title, subtitle, endpoint, columns, lastUpdatedMap, renderCell, action, expandable, expandedContent, filterComponent, extraParams, hideCount, hideUpdate, hideTimestamps, defaultSortBy, defaultSortDirection = 'asc', sortBy: controlledSortBy, sortDirection: controlledSortDirection, onSortChange, expandedRows: controlledExpandedRows, onExpandedRowsChange }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -120,6 +120,16 @@ function TableView({ title, endpoint, columns, lastUpdatedMap, renderCell, actio
           }}>
           {title}
         </h1>
+        {subtitle && (
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '0.8rem',
+            color: 'var(--text-secondary)',
+            marginTop: '0.25rem',
+          }}>
+            {subtitle}
+          </div>
+        )}
         {!hideTimestamps && lastUpdatedMap && (
           <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
             {Object.entries(lastUpdatedMap).map(([key, value]) => (

@@ -497,11 +497,24 @@ function PontosCedidosUnified() {
     [rodadaRange, isMandante, selectedPosition]
   );
 
+  const POSICAO_LABELS = {
+    gol: "Goleiro",
+    lat: "Lateral",
+    zag: "Zagueiro",
+    mei: "Meio-Campo",
+    ata: "Atacante",
+    tec: "Técnico",
+  };
+
+  const subtitleMando = isMandante === "mandante" ? "mandantes" : isMandante === "visitante" ? "visitantes" : "jogadores";
+  const subtitlePosicao = currentPosition?.abreviacao ? POSICAO_LABELS[currentPosition.abreviacao] || currentPosition.abreviacao : "";
+
   return (
     <div>
       {positionTabsComponent}
       <TableView
-        title={`Pontos Cedidos - ${currentPosition?.nome || ""}`}
+        title="Pontos Cedidos"
+        subtitle={`Pontos Cedidos por cada clube para ${subtitleMando} da posição ${subtitlePosicao}`}
         endpoint="pontos-cedidos-unified"
         columns={columns}
         filterComponent={topBarComponent}
