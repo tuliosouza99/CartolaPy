@@ -4,6 +4,7 @@ import ThemeToggle from "./ThemeToggle";
 const navItems = [
   { path: "/atletas", label: "Atletas" },
   { path: "/pontos-cedidos", label: "Pontos Cedidos" },
+  { path: "/confrontos", label: "Confrontos" },
 ];
 
 function Navbar() {

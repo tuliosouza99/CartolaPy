@@ -69,3 +69,32 @@ class ProximoJogoResponse(BaseModel):
     mandante_id: int
     visitante_id: int
     rodada: int
+
+
+class PlayerConfrontoResponse(BaseModel):
+    atleta_id: int
+    apelido: str
+    posicao_abreviacao: str
+    pontuacao: float
+    pontuacao_basica: float
+    scouts: dict[str, int]
+
+
+class ConfrontoMatchResponse(BaseModel):
+    mandante_id: int
+    mandante_nome: str
+    mandante_escudo: str
+    visitante_id: int
+    visitante_nome: str
+    visitante_escudo: str
+    placar_mandante: int | None
+    placar_visitante: int | None
+    local: str | None
+    partida_data: str | None
+    mandante_players: list[PlayerConfrontoResponse]
+    visitante_players: list[PlayerConfrontoResponse]
+
+
+class ConfrontosResponse(BaseModel):
+    rodada: int
+    matches: list[ConfrontoMatchResponse]

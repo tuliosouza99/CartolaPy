@@ -310,3 +310,269 @@ class TestValidation:
     def test_negative_page_size_returns_422(self, client):
         response = client.get("/api/tables/atletas?page_size=-1")
         assert response.status_code == 422
+
+
+class TestConfrontosEndpoint:
+    @pytest.fixture
+    def fastapi_app_with_mock_data(self, fastapi_app):
+        atletas_df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2, 3, 4],
+                "rodada_id": [10, 10, 10, 10],
+                "clube_id": [10, 10, 20, 20],
+                "posicao_id": [1, 2, 2, 1],
+                "status_id": [7, 7, 7, 7],
+                "preco_num": [100.0, 50.0, 75.0, 80.0],
+                "apelido": ["Goalkeeper A", "Forward A", "Forward B", "Goalkeeper B"],
+            }
+        )
+
+        pontuacoes_df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2, 3, 4],
+                "posicao_id": [1, 2, 2, 1],
+                "clube_id": [10, 10, 20, 20],
+                "rodada_id": [10, 10, 10, 10],
+                "pontuacao": [6.5, 8.0, 5.5, 4.0],
+                "pontuacao_basica": [6, 7, 5, 4],
+                "G": [0, 1, 0, 0],
+                "A": [0, 1, 0, 0],
+                "FD": [0, 2, 1, 0],
+                "FF": [0, 1, 0, 0],
+                "FS": [0, 0, 1, 0],
+                "DS": [2, 0, 0, 1],
+                "SG": [1, 0, 0, 0],
+                "CA": [0, 0, 1, 0],
+            }
+        )
+
+        mock_atletas = MagicMock()
+        mock_atletas.rodada_id = 15
+        mock_atletas.df = atletas_df
+        mock_atletas.fill_atletas = AsyncMock(return_value=None)
+
+        mock_pontuacoes = MagicMock()
+        mock_pontuacoes.df = pontuacoes_df
+        mock_pontuacoes.fill_pontuacoes = AsyncMock(return_value=None)
+
+        mock_request_handler = MagicMock()
+        mock_request_handler.make_get_request = AsyncMock(return_value={})
+
+        mock_data_loader = MagicMock()
+        mock_data_loader.atletas = mock_atletas
+        mock_data_loader.pontuacoes = mock_pontuacoes
+        mock_data_loader.request_handler = mock_request_handler
+
+        mock_redis_store = MagicMock()
+        mock_redis_store.load_json = MagicMock(return_value=None)
+        mock_redis_store.save_json = MagicMock()
+        mock_redis_store.save_last_updated = MagicMock()
+
+        fastapi_app.state.data_loader = mock_data_loader
+        fastapi_app.state.redis_store = mock_redis_store
+
+        return fastapi_app
+
+    @pytest.fixture
+    def client(self, fastapi_app_with_mock_data):
+        return TestClient(fastapi_app_with_mock_data)
+
+    def test_returns_correct_structure(self, client, fastapi_app_with_mock_data):
+        cached_data = [
+            {
+                "mandante_id": 10,
+                "visitante_id": 20,
+                "mandante_escudo": "http://escudo/mandante.png",
+                "visitante_escudo": "http://escudo/visitante.png",
+                "mandante_nome": "Clube Mandante",
+                "visitante_nome": "Clube Visitante",
+                "placar_oficial_mandante": 2,
+                "placar_oficial_visitante": 1,
+                "local": "Estadio X",
+                "partida_data": "2024-10-01T20:00:00",
+            }
+        ]
+
+        def load_json_side_effect(key):
+            if key == "partidas:10":
+                return cached_data
+            if key == "posicoes":
+                return {
+                    "1": {"id": 1, "nome": "Goleiro", "abreviacao": "GOL"},
+                    "2": {"id": 2, "nome": "Atacante", "abreviacao": "ATA"},
+                }
+            return None
+
+        fastapi_app_with_mock_data.state.redis_store.load_json = MagicMock(
+            side_effect=load_json_side_effect
+        )
+
+        response = client.get("/api/confrontos/10")
+        assert response.status_code == 200
+        data = response.json()
+        assert "rodada" in data
+        assert "matches" in data
+        assert data["rodada"] == 10
+
+    def test_match_structure(self, client, fastapi_app_with_mock_data):
+        response = client.get("/api/confrontos/10")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert len(data["matches"]) >= 1
+        match = data["matches"][0]
+        assert "mandante_id" in match
+        assert "visitante_id" in match
+        assert "mandante_nome" in match
+        assert "visitante_nome" in match
+        assert "placar_mandante" in match
+        assert "placar_visitante" in match
+        assert "local" in match
+        assert "partida_data" in match
+        assert "mandante_players" in match
+        assert "visitante_players" in match
+
+    def test_players_sorted_by_position_then_name(
+        self, client, fastapi_app_with_mock_data
+    ):
+        cached_data = [
+            {
+                "mandante_id": 10,
+                "visitante_id": 20,
+                "mandante_escudo": "http://escudo/mandante.png",
+                "visitante_escudo": "http://escudo/visitante.png",
+                "mandante_nome": "Clube Mandante",
+                "visitante_nome": "Clube Visitante",
+                "placar_oficial_mandante": 1,
+                "placar_oficial_visitante": 0,
+                "local": None,
+                "partida_data": None,
+            }
+        ]
+
+        def load_json_side_effect(key):
+            if key == "partidas:10":
+                return cached_data
+            if key == "posicoes":
+                return {
+                    "1": {"id": 1, "nome": "Goleiro", "abreviacao": "GOL"},
+                    "2": {"id": 2, "nome": "Atacante", "abreviacao": "ATA"},
+                }
+            return None
+
+        fastapi_app_with_mock_data.state.redis_store.load_json = MagicMock(
+            side_effect=load_json_side_effect
+        )
+
+        response = client.get("/api/confrontos/10")
+        assert response.status_code == 200
+        data = response.json()
+
+        mandante_players = data["matches"][0]["mandante_players"]
+        assert len(mandante_players) == 2
+        assert mandante_players[0]["apelido"] == "Goalkeeper A"
+        assert mandante_players[1]["apelido"] == "Forward A"
+
+    def test_player_structure(self, client, fastapi_app_with_mock_data):
+        cached_data = [
+            {
+                "mandante_id": 10,
+                "visitante_id": 20,
+                "mandante_escudo": "http://escudo/mandante.png",
+                "visitante_escudo": "http://escudo/visitante.png",
+                "mandante_nome": "Clube Mandante",
+                "visitante_nome": "Clube Visitante",
+                "placar_oficial_mandante": 1,
+                "placar_oficial_visitante": 0,
+                "local": None,
+                "partida_data": None,
+            }
+        ]
+
+        def load_json_side_effect(key):
+            if key == "partidas:10":
+                return cached_data
+            if key == "posicoes":
+                return {
+                    "1": {"id": 1, "nome": "Goleiro", "abreviacao": "GOL"},
+                    "2": {"id": 2, "nome": "Atacante", "abreviacao": "ATA"},
+                }
+            return None
+
+        fastapi_app_with_mock_data.state.redis_store.load_json = MagicMock(
+            side_effect=load_json_side_effect
+        )
+
+        response = client.get("/api/confrontos/10")
+        assert response.status_code == 200
+        data = response.json()
+
+        player = data["matches"][0]["mandante_players"][0]
+        assert "atleta_id" in player
+        assert "apelido" in player
+        assert "posicao_abreviacao" in player
+        assert "pontuacao" in player
+        assert "pontuacao_basica" in player
+        assert "scouts" in player
+        assert player["apelido"] == "Goalkeeper A"
+        assert player["pontuacao"] == 6.5
+        assert player["pontuacao_basica"] == 6.0
+        assert "SG" in player["scouts"]
+
+    def test_returns_matches_for_rodada(self, client, fastapi_app_with_mock_data):
+        response = client.get("/api/confrontos/10")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "rodada" in data
+        assert "matches" in data
+        assert data["rodada"] == 10
+        assert isinstance(data["matches"], list)
+
+    def test_fetches_from_api_on_cache_miss(self, client, fastapi_app_with_mock_data):
+        def load_json_side_effect(key):
+            if key == "partidas:10":
+                return None
+            if key == "posicoes":
+                return {
+                    "1": {"id": 1, "nome": "Goleiro", "abreviacao": "GOL"},
+                    "2": {"id": 2, "nome": "Atacante", "abreviacao": "ATA"},
+                }
+            return None
+
+        fastapi_app_with_mock_data.state.redis_store.load_json = MagicMock(
+            side_effect=load_json_side_effect
+        )
+
+        fastapi_app_with_mock_data.state.data_loader.request_handler.make_get_request = AsyncMock(
+            return_value={
+                "clubes": {
+                    "10": {
+                        "nome": "Clube Mandante",
+                        "escudos": {"60x60": "http://escudo/mandante.png"},
+                    },
+                    "20": {
+                        "nome": "Clube Visitante",
+                        "escudos": {"60x60": "http://escudo/visitante.png"},
+                    },
+                },
+                "partidas": [
+                    {
+                        "clube_casa_id": 10,
+                        "clube_visitante_id": 20,
+                        "valida": True,
+                        "placar_oficial_mandante": 1,
+                        "placar_oficial_visitante": 1,
+                        "local": "Estadio Z",
+                        "partida_data": "2024-10-02T21:00:00",
+                    }
+                ],
+            }
+        )
+
+        response = client.get("/api/confrontos/10")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["matches"]) == 1
+        assert data["matches"][0]["mandante_id"] == 10
+        assert data["matches"][0]["visitante_id"] == 20

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from ..dependencies import get_data_loader, get_redis_store
@@ -9,7 +10,10 @@ from ..services.atletas_unified import compute_atletas_unified
 from ..services.pontos_cedidos_unified import compute_pontos_cedidos_unified
 from ..services.redis_store import RedisDataFrameStore
 from .models import (
+    ConfrontosResponse,
+    ConfrontoMatchResponse,
     IsMandante,
+    PlayerConfrontoResponse,
     SortDirection,
     TableResponse,
     TableStatus,
@@ -179,6 +183,14 @@ async def fetch_partidas_from_cartola(request_handler, rodada: int) -> list[dict
             "visitante_escudo": clubes.get(str(p["clube_visitante_id"]), {})
             .get("escudos", {})
             .get("60x60", ""),
+            "mandante_nome": clubes.get(str(p["clube_casa_id"]), {}).get("nome", ""),
+            "visitante_nome": clubes.get(str(p["clube_visitante_id"]), {}).get(
+                "nome", ""
+            ),
+            "placar_oficial_mandante": p.get("placar_oficial_mandante"),
+            "placar_oficial_visitante": p.get("placar_oficial_visitante"),
+            "local": p.get("local"),
+            "partida_data": p.get("partida_data"),
         }
         for p in page_json.get("partidas", [])
         if p.get("valida", False)
@@ -202,6 +214,125 @@ async def get_partidas(
     store.save_last_updated(cache_key, datetime.now(timezone.utc))
 
     return partidas
+
+
+@router.get("/confrontos/{rodada}", response_model=ConfrontosResponse)
+async def get_confrontos_detail(
+    rodada: int,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+):
+    cache_key = f"partidas:{rodada}"
+    cached = store.load_json(cache_key)
+
+    if not cached:
+        cached = await fetch_partidas_from_cartola(data_loader.request_handler, rodada)
+        store.save_json(cache_key, cached)
+        store.save_last_updated(cache_key, datetime.now(timezone.utc))
+
+    posicoes_cache = store.load_json("posicoes")
+
+    pontuacoes_df = data_loader.pontuacoes.df.copy()
+    pontuacoes_df["atleta_id"] = pd.to_numeric(
+        pontuacoes_df["atleta_id"], errors="coerce"
+    ).astype("Int64")
+    atletas_df = data_loader.atletas.df
+
+    pontuacoes_rodada = pontuacoes_df[
+        pontuacoes_df["rodada_id"] == rodada
+    ].drop_duplicates(subset=["atleta_id"])
+
+    matches = []
+    for match in cached:
+        mandante_id = match["mandante_id"]
+        visitante_id = match["visitante_id"]
+
+        def build_players(clube_id: int) -> list[PlayerConfrontoResponse]:
+            club_pont = pontuacoes_rodada[pontuacoes_rodada["clube_id"] == clube_id]
+            if club_pont.empty:
+                return []
+
+            club_atletas = atletas_df[
+                atletas_df["atleta_id"].isin(club_pont["atleta_id"])
+            ][["atleta_id", "apelido"]].drop_duplicates(subset=["atleta_id"])
+
+            merged = club_pont.merge(club_atletas, on="atleta_id", how="left")
+
+            merged = merged.sort_values(
+                ["posicao_id", "apelido"],
+                ascending=[True, True],
+                na_position="first",
+            )
+
+            players = []
+            for _, row in merged.iterrows():
+                scouts = {
+                    k: int(row[k])
+                    for k in [
+                        "G",
+                        "A",
+                        "FT",
+                        "FD",
+                        "FF",
+                        "FS",
+                        "PS",
+                        "V",
+                        "I",
+                        "PP",
+                        "DS",
+                        "SG",
+                        "DE",
+                        "DP",
+                        "CV",
+                        "CA",
+                        "FC",
+                        "GC",
+                        "GS",
+                        "PC",
+                    ]
+                    if row.get(k, 0) != 0
+                }
+                pos_abrev = (
+                    posicoes_cache.get(str(int(row["posicao_id"])), {})
+                    .get("abreviacao", "")
+                    .upper()
+                    if posicoes_cache
+                    else ""
+                )
+                players.append(
+                    PlayerConfrontoResponse(
+                        atleta_id=int(row["atleta_id"]),
+                        apelido=str(row["apelido"]) if pd.notna(row["apelido"]) else "",
+                        posicao_abreviacao=pos_abrev,
+                        pontuacao=float(row["pontuacao"])
+                        if pd.notna(row["pontuacao"])
+                        else 0.0,
+                        pontuacao_basica=float(row["pontuacao_basica"])
+                        if pd.notna(row["pontuacao_basica"])
+                        else 0.0,
+                        scouts=scouts,
+                    )
+                )
+            return players
+
+        matches.append(
+            ConfrontoMatchResponse(
+                mandante_id=mandante_id,
+                mandante_nome=match.get("mandante_nome", ""),
+                mandante_escudo=match.get("mandante_escudo", ""),
+                visitante_id=visitante_id,
+                visitante_nome=match.get("visitante_nome", ""),
+                visitante_escudo=match.get("visitante_escudo", ""),
+                placar_mandante=match.get("placar_oficial_mandante"),
+                placar_visitante=match.get("placar_oficial_visitante"),
+                local=match.get("local"),
+                partida_data=match.get("partida_data"),
+                mandante_players=build_players(mandante_id),
+                visitante_players=build_players(visitante_id),
+            )
+        )
+
+    return ConfrontosResponse(rodada=rodada, matches=matches)
 
 
 @router.get("/tables/filter-options")

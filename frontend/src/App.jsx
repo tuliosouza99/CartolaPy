@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import AtletasUnified from './pages/AtletasUnified'
 import PontosCedidosUnified from './pages/PontosCedidosUnified'
+import Confrontos from './pages/Confrontos'
 import DevDashboard from './pages/DevDashboard'
 
 export const ThemeContext = createContext()
@@ -42,6 +43,7 @@ function App() {
             <Route path="/" element={<Navigate to="/atletas" replace />} />
             <Route path="/atletas" element={<AtletasUnified key="atletas" />} />
             <Route path="/pontos-cedidos" element={<PontosCedidosUnified key="pontos-cedidos" />} />
+            <Route path="/confrontos" element={<Confrontos key="confrontos" />} />
             <Route path="/dev" element={<DevDashboard />} />
           </Routes>
         </main>
