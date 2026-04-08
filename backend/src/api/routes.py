@@ -10,10 +10,10 @@ from slowapi.util import get_remote_address
 from ..dependencies import get_data_loader, get_redis_store
 from ..services import DataLoader
 from ..services.atletas_unified import compute_atletas_unified
-from ..services.cartola_models import validate_partidas_response
+from ..services.cartola_models import ClubeData, validate_partidas_response
 from ..services.pontos_cedidos_unified import compute_pontos_cedidos_unified
 from ..services.redis_store import RedisDataFrameStore
-from .auth import verify_api_key, verify_admin_api_key
+from .auth import verify_admin_api_key, verify_api_key
 from .models import (
     AtletaHistoricoItem,
     AtletaHistoricoResponse,
@@ -48,6 +48,8 @@ async def get_atletas(
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
     df = store.load_dataframe("atletas")
+    if df is None:
+        raise HTTPException(status_code=500, detail="No data found for atletas")
 
     if sort_by is not None:
         if sort_by not in df.columns:
@@ -81,6 +83,8 @@ async def get_pontuacoes(
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
     df = store.load_dataframe("pontuacoes")
+    if df is None:
+        raise HTTPException(status_code=500, detail="No data found for pontuacoes")
 
     if sort_by is not None:
         if sort_by not in df.columns:
@@ -114,6 +118,8 @@ async def get_confrontos(
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
     df = store.load_dataframe("confrontos")
+    if df is None:
+        raise HTTPException(status_code=500, detail="No data found for confrontos")
 
     if sort_by is not None:
         if sort_by not in df.columns:
@@ -147,6 +153,8 @@ async def get_pontos_cedidos(
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
     df = store.load_dataframe("pontos_cedidos")
+    if df is None:
+        raise HTTPException(status_code=500, detail="No data found for pontos_cedidos")
 
     if sort_by is not None:
         if sort_by not in df.columns:
@@ -204,16 +212,20 @@ async def fetch_partidas_from_cartola(request_handler, rodada: int) -> list[dict
                 "partida_id": p.partida_id,
                 "mandante_id": p.clube_casa_id,
                 "visitante_id": p.clube_visitante_id,
-                "mandante_escudo": clubes.get(clube_casa_id_str, {}).escudos.get(
-                    "60x60", ""
-                ),
-                "visitante_escudo": clubes.get(clube_visitante_id_str, {}).escudos.get(
-                    "60x60", ""
-                ),
-                "mandante_nome": clubes.get(clube_casa_id_str, {}).nome_fantasia
-                or clubes.get(clube_casa_id_str, {}).nome,
-                "visitante_nome": clubes.get(clube_visitante_id_str, {}).nome_fantasia
-                or clubes.get(clube_visitante_id_str, {}).nome,
+                "mandante_escudo": clubes.get(
+                    clube_casa_id_str, ClubeData()
+                ).escudos.get("60x60", ""),
+                "visitante_escudo": clubes.get(
+                    clube_visitante_id_str, ClubeData()
+                ).escudos.get("60x60", ""),
+                "mandante_nome": clubes.get(
+                    clube_casa_id_str, ClubeData()
+                ).nome_fantasia
+                or clubes.get(clube_casa_id_str, ClubeData()).nome,
+                "visitante_nome": clubes.get(
+                    clube_visitante_id_str, ClubeData()
+                ).nome_fantasia
+                or clubes.get(clube_visitante_id_str, ClubeData()).nome,
                 "placar_oficial_mandante": p.placar_oficial_mandante,
                 "placar_oficial_visitante": p.placar_oficial_visitante,
                 "local": p.local,
@@ -262,17 +274,18 @@ async def get_confrontos_detail(
         store.save_last_updated(cache_key, datetime.now(timezone.utc))
 
     posicoes_cache = store.load_json("posicoes")
+    pontuacoes_df = store.load_dataframe("pontuacoes")
+    if pontuacoes_df is None:
+        raise HTTPException(status_code=500, detail="No data found for pontuacoes")
+    atletas_df = store.load_dataframe("atletas")
+    if atletas_df is None:
+        raise HTTPException(status_code=500, detail="No data found for atletas")
 
-    pontuacoes_df = (
-        store.load_dataframe("pontuacoes")
-        .copy()
-        .assign(
-            atleta_id=lambda df_: pd.to_numeric(
-                df_["atleta_id"], errors="coerce"
-            ).astype("Int64")
+    pontuacoes_df = pontuacoes_df.copy().assign(
+        atleta_id=lambda df_: pd.to_numeric(df_["atleta_id"], errors="coerce").astype(
+            "Int64"
         )
     )
-    atletas_df = store.load_dataframe("atletas")
 
     pontuacoes_rodada = pontuacoes_df.loc[
         pontuacoes_df["rodada_id"] == rodada
@@ -491,10 +504,22 @@ async def get_atletas_unified(
         store.save_json(f"partidas:{next_rodada}", proximo_jogo_cache)
         store.save_last_updated(f"partidas:{next_rodada}", datetime.now(timezone.utc))
 
+    atletas_df = store.load_dataframe("atletas")
+    if atletas_df is None:
+        raise HTTPException(status_code=500, detail="No data found for atletas")
+
+    pontuacoes_df = store.load_dataframe("pontuacoes")
+    if pontuacoes_df is None:
+        raise HTTPException(status_code=500, detail="No data found for pontuacoes")
+
+    confrontos_df = store.load_dataframe("confrontos")
+    if confrontos_df is None:
+        raise HTTPException(status_code=500, detail="No data found for confrontos")
+
     df = compute_atletas_unified(
-        atletas_df=store.load_dataframe("atletas"),
-        pontuacoes_df=store.load_dataframe("pontuacoes"),
-        confrontos_df=store.load_dataframe("confrontos"),
+        atletas_df=atletas_df,
+        pontuacoes_df=pontuacoes_df,
+        confrontos_df=confrontos_df,
         rodada_min=rodada_min,
         rodada_max=rodada_max,
         is_mandante=is_mandante,
@@ -571,7 +596,13 @@ async def get_atleta_historico(
         rodada_max = rodada_atual
 
     pontuacoes_df = store.load_dataframe("pontuacoes")
+    if pontuacoes_df is None:
+        raise HTTPException(status_code=500, detail="No data found for pontuacoes")
+
     confrontos_df = store.load_dataframe("confrontos")
+    if confrontos_df is None:
+        raise HTTPException(status_code=500, detail="No data found for confrontos")
+
     clubes_cache = store.load_json("clubes") or {}
 
     filtered = pontuacoes_df[
@@ -687,8 +718,12 @@ async def get_pontos_cedidos_unified(
     if rodada_max is None:
         rodada_max = rodada_atual
 
+    pontos_cedidos_df = store.load_dataframe("pontos_cedidos")
+    if not isinstance(pontos_cedidos_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for pontos_cedidos")
+
     df = compute_pontos_cedidos_unified(
-        pontos_cedidos_df=store.load_dataframe("pontos_cedidos"),
+        pontos_cedidos_df=pontos_cedidos_df,
         rodada_min=rodada_min,
         rodada_max=rodada_max,
         is_mandante=is_mandante,
@@ -748,6 +783,8 @@ async def get_pontos_cedidos_unified_matches(
         rodada_max = rodada_atual
 
     pontos_cedidos_df = store.load_dataframe("pontos_cedidos")
+    if not isinstance(pontos_cedidos_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for pontos_cedidos")
     if pontos_cedidos_df.empty:
         return MatchPontosCedidosListResponse(matches=[])
 
@@ -762,6 +799,9 @@ async def get_pontos_cedidos_unified_matches(
         return MatchPontosCedidosListResponse(matches=[])
 
     confrontos_df = store.load_dataframe("confrontos")
+    if not isinstance(confrontos_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for confrontos")
+
     filtered = filtered.merge(
         confrontos_df[["partida_id", "opponent_clube_id", "rodada_id", "is_mandante"]],
         on=["partida_id", "is_mandante", "rodada_id"],
