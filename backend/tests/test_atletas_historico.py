@@ -112,6 +112,12 @@ class TestAtletasHistoricoEndpoint:
             }.get(key)
 
         mock_redis_store.load_json = MagicMock(side_effect=load_json_side_effect)
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "pontuacoes": pontuacoes_df,
+                "confrontos": confrontos_df,
+            }.get(key, pd.DataFrame())
+        )
         mock_redis_store.exists = MagicMock(return_value=True)
 
         fastapi_app.state.data_loader = mock_data_loader

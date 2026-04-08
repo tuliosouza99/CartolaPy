@@ -30,4 +30,5 @@ dev = [
 [tool.pytest.ini_options]
 env = [
     "ENVIRONMENT=pytest",
+    "REDIS_URL=redis://localhost:6379",
 ]
