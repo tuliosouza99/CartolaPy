@@ -12,6 +12,7 @@ from ..services import DataLoader
 from ..services.atletas_unified import compute_atletas_unified
 from ..services.cartola_models import ClubeData, validate_partidas_response
 from ..services.pontos_cedidos_unified import compute_pontos_cedidos_unified
+from ..services.pontos_conquistados_unified import compute_pontos_conquistados_unified
 from ..services.redis_store import RedisDataFrameStore
 from .auth import verify_admin_api_key, verify_api_key
 from .models import (
@@ -22,6 +23,8 @@ from .models import (
     IsMandante,
     MatchPontosCedidosListResponse,
     MatchPontosCedidosResponse,
+    MatchPontosConquistadosListResponse,
+    MatchPontosConquistadosResponse,
     PlayerConfrontoResponse,
     ProximoJogoResponse,
     SortDirection,
@@ -850,6 +853,254 @@ async def get_pontos_cedidos_unified_matches(
     results.sort(key=lambda x: x.rodada_id, reverse=True)
 
     return MatchPontosCedidosListResponse(matches=results)
+
+
+@router.get("/tables/pontos-conquistados-unified", response_model=TableResponse)
+@limiter.limit("100/minute")
+async def get_pontos_conquistados_unified(
+    request: Request,
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1),
+    sort_by: str | None = None,
+    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    rodada_min: int = Query(default=1, ge=1),
+    rodada_max: int | None = None,
+    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+    posicao_id: int = Query(default=1, ge=1),
+    status_ids: str | None = Query(default=None),
+):
+    rodada_atual = store.load_rodada_id() or 1
+    if rodada_max is None:
+        rodada_max = rodada_atual
+
+    pontuacoes_df = store.load_dataframe("pontuacoes")
+    if not isinstance(pontuacoes_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for pontuacoes")
+
+    atletas_df = store.load_dataframe("atletas")
+    confrontos_df = store.load_dataframe("confrontos")
+
+    if not isinstance(atletas_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for atletas")
+    if not isinstance(confrontos_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for confrontos")
+
+    status_df = atletas_df[["atleta_id", "status_id"]].drop_duplicates()
+    if not status_df.empty:
+        status_df = status_df.copy()
+        if status_df["atleta_id"].dtype != pontuacoes_df["atleta_id"].dtype:
+            status_df["atleta_id"] = status_df["atleta_id"].astype(
+                pontuacoes_df["atleta_id"].dtype
+            )
+    pontuacoes_with_status = pontuacoes_df.merge(status_df, on="atleta_id", how="left")
+
+    confrontos_subset = confrontos_df[
+        ["clube_id", "rodada_id", "partida_id", "is_mandante"]
+    ]
+    if not pontuacoes_with_status.empty:
+        pontuacoes_with_mando = pontuacoes_with_status.copy()
+        for col in ["clube_id", "rodada_id"]:
+            if pontuacoes_with_mando[col].dtype != confrontos_subset[col].dtype:
+                pontuacoes_with_mando[col] = pontuacoes_with_mando[col].astype(
+                    confrontos_subset[col].dtype
+                )
+        pontuacoes_with_mando = pontuacoes_with_mando.merge(
+            confrontos_subset, on=["clube_id", "rodada_id"], how="left"
+        )
+    else:
+        pontuacoes_with_mando = pontuacoes_with_status
+
+    parsed_status_ids = None
+    if status_ids:
+        try:
+            parsed_status_ids = [
+                int(s.strip()) for s in status_ids.split(",") if s.strip()
+            ]
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid status_ids format")
+
+    df = compute_pontos_conquistados_unified(
+        pontuacoes_df=pontuacoes_with_mando,
+        rodada_min=rodada_min,
+        rodada_max=rodada_max,
+        is_mandante=is_mandante,
+        posicao_id=posicao_id,
+        status_ids=parsed_status_ids,
+    )
+
+    output_cols = [
+        "clube_id",
+        "media_conquistada",
+        "media_conquistada_basica",
+        "total_jogos",
+        "scouts",
+        "scout_contributions",
+        "total_points",
+    ]
+
+    df = df.loc[:, [c for c in output_cols if c in df.columns]]
+
+    if sort_by is not None:
+        if sort_by not in df.columns:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            )
+        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
+
+    total = len(df)
+    offset = (page - 1) * page_size
+    paginated_df = df.iloc[offset : offset + page_size]
+
+    data = paginated_df.to_dict(orient="records")
+
+    return TableResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        data=data,
+        sort_by=sort_by,
+        sort_direction=sort_direction.value if sort_direction else None,
+    )
+
+
+@router.get(
+    "/tables/pontos-conquistados-unified/{clube_id}/matches",
+    response_model=MatchPontosConquistadosListResponse,
+)
+@limiter.limit("100/minute")
+async def get_pontos_conquistados_unified_matches(
+    request: Request,
+    clube_id: int,
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+    rodada_min: int = Query(default=1, ge=1),
+    rodada_max: int | None = None,
+    posicao_id: int = Query(default=1, ge=1),
+    status_ids: str | None = Query(default=None),
+):
+    rodada_atual = store.load_rodada_id() or 1
+    if rodada_max is None:
+        rodada_max = rodada_atual
+
+    pontuacoes_df = store.load_dataframe("pontuacoes")
+    if not isinstance(pontuacoes_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for pontuacoes")
+    if pontuacoes_df.empty:
+        return MatchPontosConquistadosListResponse(matches=[])
+
+    atletas_df = store.load_dataframe("atletas")
+    confrontos_df = store.load_dataframe("confrontos")
+
+    if not isinstance(atletas_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for atletas")
+    if not isinstance(confrontos_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for confrontos")
+
+    status_df = atletas_df[["atleta_id", "status_id"]].drop_duplicates()
+    if not status_df.empty:
+        status_df = status_df.copy()
+        if status_df["atleta_id"].dtype != pontuacoes_df["atleta_id"].dtype:
+            status_df["atleta_id"] = status_df["atleta_id"].astype(
+                pontuacoes_df["atleta_id"].dtype
+            )
+    pontuacoes_with_status = pontuacoes_df.merge(status_df, on="atleta_id", how="left")
+
+    confrontos_subset = confrontos_df[
+        ["clube_id", "rodada_id", "partida_id", "is_mandante"]
+    ]
+    if not pontuacoes_with_status.empty:
+        pontuacoes_with_mando = pontuacoes_with_status.copy()
+        for col in ["clube_id", "rodada_id"]:
+            if pontuacoes_with_mando[col].dtype != confrontos_subset[col].dtype:
+                pontuacoes_with_mando[col] = pontuacoes_with_mando[col].astype(
+                    confrontos_subset[col].dtype
+                )
+        pontuacoes_with_mando = pontuacoes_with_mando.merge(
+            confrontos_subset, on=["clube_id", "rodada_id"], how="left"
+        )
+    else:
+        pontuacoes_with_mando = pontuacoes_with_status
+
+    parsed_status_ids = None
+    if status_ids:
+        try:
+            parsed_status_ids = [
+                int(s.strip()) for s in status_ids.split(",") if s.strip()
+            ]
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid status_ids format")
+
+    filtered = pontuacoes_with_mando[
+        (pontuacoes_with_mando["clube_id"] == clube_id)
+        & (pontuacoes_with_mando["rodada_id"] >= rodada_min)
+        & (pontuacoes_with_mando["rodada_id"] <= rodada_max)
+        & (pontuacoes_with_mando["posicao_id"] == posicao_id)
+    ].copy()
+
+    if parsed_status_ids:
+        filtered = filtered[filtered["status_id"].isin(parsed_status_ids)]
+
+    if filtered.empty:
+        return MatchPontosConquistadosListResponse(matches=[])
+
+    filtered = filtered.merge(
+        confrontos_df[["partida_id", "opponent_clube_id", "rodada_id", "is_mandante"]],
+        on=["partida_id", "is_mandante", "rodada_id"],
+        how="left",
+        suffixes=("", "_conf"),
+    )
+
+    aggregated = filtered.groupby("partida_id", as_index=False).agg(
+        {
+            "rodada_id": "first",
+            "opponent_clube_id": "first",
+            "is_mandante": "first",
+            "pontuacao": "mean",
+            "pontuacao_basica": "mean",
+        }
+    )
+
+    clubes_cache = store.load_json("clubes") or {}
+
+    results = []
+    for _, row in aggregated.iterrows():
+        opponent_clube_id = (
+            int(row["opponent_clube_id"])
+            if pd.notna(row["opponent_clube_id"])
+            else None
+        )
+        opponent_clube_data = (
+            clubes_cache.get(str(opponent_clube_id), {}) if opponent_clube_id else {}
+        )
+        opponent_nome = opponent_clube_data.get("nome", "")
+        opponent_escudo = (
+            opponent_clube_data.get("escudos", {}).get("60x60", "")
+            if opponent_clube_data
+            else ""
+        )
+
+        results.append(
+            MatchPontosConquistadosResponse(
+                partida_id=int(row["partida_id"]) if pd.notna(row["partida_id"]) else 0,
+                rodada_id=int(row["rodada_id"]),
+                opponent_clube_id=opponent_clube_id or 0,
+                opponent_nome=opponent_nome,
+                opponent_escudo=opponent_escudo,
+                is_mandante=bool(row["is_mandante"])
+                if pd.notna(row["is_mandante"])
+                else True,
+                pontuacao=float(row["pontuacao"])
+                if pd.notna(row["pontuacao"])
+                else 0.0,
+                pontuacao_basica=float(row["pontuacao_basica"])
+                if pd.notna(row["pontuacao_basica"])
+                else 0.0,
+            )
+        )
+
+    results.sort(key=lambda x: x.rodada_id, reverse=True)
+
+    return MatchPontosConquistadosListResponse(matches=results)
 
 
 @router.get("/proximo-jogo/{clube_id}", response_model=ProximoJogoResponse)

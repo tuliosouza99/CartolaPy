@@ -3,6 +3,7 @@ import ThemeToggle from "./ThemeToggle";
 
 const navItems = [
   { path: "/atletas", label: "Atletas" },
+  { path: "/pontos-conquistados", label: "Pontos Conquistados" },
   { path: "/pontos-cedidos", label: "Pontos Cedidos" },
   { path: "/confrontos", label: "Confrontos" },
 ];
