@@ -22,9 +22,9 @@ def compute_pontos_cedidos_unified(
         ]
         .pipe(
             lambda df_: (
-                df_.loc[df_["is_mandante"]]
+                df_.loc[~df_["is_mandante"]]
                 if is_mandante == "mandante"
-                else df_.loc[~df_["is_mandante"]]
+                else df_.loc[df_["is_mandante"]]
                 if is_mandante == "visitante"
                 else df_
             )
@@ -45,58 +45,71 @@ def compute_pontos_cedidos_unified(
             ]
         )
 
-    pont_agg = pont_filtered.groupby("clube_id").agg(
-        media_cedida=("pontuacao", "mean"),
-        media_cedida_basica=("pontuacao_basica", "mean"),
-        total_jogos=("rodada_id", "nunique"),
-        **{scout: (scout, "sum") for scout in scout_cols},
+    scout_value_series = pd.Series(
+        {s: Scout.get_value(s) for s in scout_cols}, index=scout_cols
     )
 
-    pont_agg = pont_agg.reset_index()
-    pont_agg["clube_id"] = pd.to_numeric(pont_agg["clube_id"], errors="coerce").astype(
-        "Int64"
+    pont_agg = (
+        pont_filtered.groupby("clube_id")
+        .agg(
+            media_cedida=("pontuacao", "mean"),
+            media_cedida_basica=("pontuacao_basica", "mean"),
+            total_jogos=("rodada_id", "nunique"),
+            **{scout: (scout, "sum") for scout in scout_cols},
+        )
+        .reset_index()
+        .assign(
+            clube_id=lambda df_: pd.to_numeric(df_["clube_id"], errors="coerce").astype(
+                "Int64"
+            ),
+        )
     )
 
-    scout_values = {scout: Scout.get_value(scout) for scout in scout_cols}
+    scout_sums = pont_agg[scout_cols].fillna(0)
+    scout_pts = scout_sums.mul(scout_value_series, axis=1)
+    total_points = scout_pts.sum(axis=1)
 
-    total_points_raw = {}
-    scout_contributions = {}
+    long = (
+        pd.concat(
+            [
+                scout_sums.stack().rename("raw_sum"),
+                scout_pts.stack().rename("points_contribution"),
+            ],
+            axis=1,
+        )
+        .reset_index()
+        .rename(columns={"level_0": "row_idx", "level_1": "scout"})
+        .query("raw_sum != 0")
+        .assign(
+            total_raw=lambda df_: df_["row_idx"].map(total_points),
+            raw_sum=lambda df_: df_["raw_sum"].round(2),
+            points_contribution=lambda df_: df_["points_contribution"].round(2),
+            percentage=lambda df_: (
+                df_["points_contribution"]
+                .div(df_["total_raw"])
+                .mul(100)
+                .round(1)
+                .where(df_["total_raw"] != 0, 0.0)
+            ),
+        )
+    )
 
-    for idx, row in pont_agg.iterrows():
-        clube_id = row["clube_id"]
-        total_raw = 0.0
-        contributions = {}
+    contributions_by_row = long.groupby("row_idx").apply(
+        lambda g: g.set_index("scout")[
+            ["raw_sum", "points_contribution", "percentage"]
+        ].to_dict(orient="index"),
+        include_groups=False,
+    )
 
-        for scout in scout_cols:
-            scout_sum = row[scout]
-            if pd.notna(scout_sum) and scout_sum != 0:
-                scout_pts = scout_sum * scout_values[scout]
-                total_raw += scout_pts
-                contributions[scout] = {
-                    "raw_sum": round(scout_sum, 2),
-                    "points_contribution": round(scout_pts, 2),
-                }
+    scout_contributions_list = [
+        contributions_by_row.iloc[i] if i in contributions_by_row.index else None
+        for i in range(len(pont_agg))
+    ]
 
-        total_points_raw[clube_id] = total_raw
-        scout_contributions[clube_id] = contributions
-
-    for idx, row in pont_agg.iterrows():
-        clube_id = row["clube_id"]
-        total_raw = total_points_raw[clube_id]
-        contributions = scout_contributions[clube_id]
-
-        for scout in contributions:
-            if total_raw != 0:
-                contributions[scout]["percentage"] = round(
-                    (contributions[scout]["points_contribution"] / total_raw) * 100, 1
-                )
-            else:
-                contributions[scout]["percentage"] = 0.0
-
-    pont_agg["scouts"] = pont_agg[scout_cols].round(2).to_dict(orient="records")
-    pont_agg["scout_contributions"] = pont_agg["clube_id"].map(scout_contributions)
-    pont_agg["total_points"] = pont_agg["clube_id"].map(total_points_raw)
-    pont_agg["media_cedida"] = pont_agg["media_cedida"].round(2)
-    pont_agg["media_cedida_basica"] = pont_agg["media_cedida_basica"].round(2)
-
-    return pont_agg
+    return pont_agg.assign(
+        media_cedida=lambda df_: df_["media_cedida"].round(2),
+        media_cedida_basica=lambda df_: df_["media_cedida_basica"].round(2),
+        scouts=lambda df_: df_[scout_cols].round(2).to_dict(orient="records"),
+        scout_contributions=scout_contributions_list,
+        total_points=total_points.values,
+    )
