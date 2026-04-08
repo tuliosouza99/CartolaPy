@@ -14,17 +14,23 @@ def compute_pontos_cedidos_unified(
 ) -> pd.DataFrame:
     scout_cols = Scout.as_list()
 
-    pont_filtered = pontos_cedidos_df[
-        (pontos_cedidos_df["rodada_id"] >= rodada_min)
-        & (pontos_cedidos_df["rodada_id"] <= rodada_max)
-    ].copy()
-
-    pont_filtered = pont_filtered[pont_filtered["posicao_id"] == posicao_id]
-
-    if is_mandante == "mandante":
-        pont_filtered = pont_filtered[~pont_filtered["is_mandante"]]
-    elif is_mandante == "visitante":
-        pont_filtered = pont_filtered[pont_filtered["is_mandante"]]
+    pont_filtered = (
+        pontos_cedidos_df.loc[
+            (pontos_cedidos_df["rodada_id"] >= rodada_min)
+            & (pontos_cedidos_df["rodada_id"] <= rodada_max)
+            & (pontos_cedidos_df["posicao_id"] == posicao_id)
+        ]
+        .pipe(
+            lambda df_: (
+                df_.loc[df_["is_mandante"]]
+                if is_mandante == "mandante"
+                else df_.loc[~df_["is_mandante"]]
+                if is_mandante == "visitante"
+                else df_
+            )
+        )
+        .copy()
+    )
 
     if pont_filtered.empty:
         return pd.DataFrame(
@@ -46,17 +52,14 @@ def compute_pontos_cedidos_unified(
             **{scout: (scout, "mean") for scout in scout_cols},
         )
         .reset_index()
-    )
-
-    pont_agg["clube_id"] = pd.to_numeric(pont_agg["clube_id"], errors="coerce").astype(
-        "Int64"
-    )
-
-    pont_agg["media_cedida"] = pont_agg["media_cedida"].round(2)
-    pont_agg["media_cedida_basica"] = pont_agg["media_cedida_basica"].round(2)
-
-    pont_agg["scouts"] = pont_agg.apply(
-        lambda row: {scout: round(row[scout], 2) for scout in scout_cols}, axis=1
+        .assign(
+            clube_id=lambda df_: pd.to_numeric(df_["clube_id"], errors="coerce").astype(
+                "Int64"
+            ),
+            media_cedida=lambda df_: df_["media_cedida"].round(2),
+            media_cedida_basica=lambda df_: df_["media_cedida_basica"].round(2),
+            scouts=lambda df_: df_[scout_cols].round(2).to_dict(orient="records"),
+        )
     )
 
     return pont_agg

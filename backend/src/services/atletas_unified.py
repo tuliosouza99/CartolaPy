@@ -169,19 +169,19 @@ def compute_atletas_unified(
         ]
 
     if clube_ids is not None and len(clube_ids) > 0:
-        result = result[result["clube_id"].isin(clube_ids)]
+        result = result.loc[result["clube_id"].isin(clube_ids)]
 
     if posicao_ids is not None and len(posicao_ids) > 0:
-        result = result[result["posicao_id"].isin(posicao_ids)]
+        result = result.loc[result["posicao_id"].isin(posicao_ids)]
 
     if status_ids is not None and len(status_ids) > 0:
-        result = result[result["status_id"].isin(status_ids)]
+        result = result.loc[result["status_id"].isin(status_ids)]
 
     if preco_min is not None:
-        result = result[result["preco_num"] >= preco_min]
+        result = result.loc[result["preco_num"] >= preco_min]
 
     if preco_max is not None:
-        result = result[result["preco_num"] <= preco_max]
+        result = result.loc[result["preco_num"] <= preco_max]
 
     return result
 
@@ -193,9 +193,9 @@ def compute_proximo_jogo(
     clubes_cache: dict | None,
 ) -> dict:
     next_rodada = rodada_atual + 1
-    next_matches = confrontos_df[confrontos_df["rodada_id"] == next_rodada]
+    next_matches = confrontos_df.loc[confrontos_df["rodada_id"] == next_rodada]
 
-    match = next_matches[next_matches["clube_id"] == clube_id]
+    match = next_matches.loc[next_matches["clube_id"] == clube_id]
 
     if match.empty:
         match = next_matches[next_matches["opponent_clube_id"] == clube_id]
