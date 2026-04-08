@@ -101,6 +101,13 @@ class TestAtletasUnifiedEndpoint:
             }.get(key)
 
         mock_redis_store.load_json = MagicMock(side_effect=load_json_side_effect)
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "atletas": atletas_df,
+                "pontuacoes": pontuacoes_df,
+                "confrontos": confrontos_df,
+            }.get(key, pd.DataFrame())
+        )
         mock_redis_store.exists = MagicMock(return_value=True)
         mock_redis_store.load_rodada_id = MagicMock(return_value=15)
 
@@ -311,6 +318,13 @@ class TestMandanteFilter:
             }.get(key)
 
         mock_redis_store.load_json = MagicMock(side_effect=load_json_side_effect)
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "atletas": atletas_df,
+                "pontuacoes": pontuacoes_df,
+                "confrontos": confrontos_df,
+            }.get(key, pd.DataFrame())
+        )
         mock_redis_store.exists = MagicMock(return_value=True)
         mock_redis_store.load_rodada_id = MagicMock(return_value=15)
 
@@ -422,6 +436,12 @@ class TestProximoJogoEndpoint:
             }.get(key)
 
         mock_redis_store.load_json = MagicMock(side_effect=load_json_side_effect)
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "atletas": atletas_df,
+                "confrontos": confrontos_df,
+            }.get(key, pd.DataFrame())
+        )
         mock_redis_store.exists = MagicMock(return_value=True)
 
         fastapi_app.state.data_loader = mock_data_loader

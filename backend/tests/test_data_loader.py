@@ -1,10 +1,7 @@
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
-from src.services.data_loaders.data_loader import DataLoader
-from src.services.data_loaders.atletas import Atletas
 
 
 @pytest.fixture
@@ -20,7 +17,10 @@ def sample_atletas_response():
                 "preco_num": 10.5,
                 "apelido": "Biro",
             },
-        ]
+        ],
+        "clubes": {"264": {"id": 264, "nome": "Flamengo", "escudos": {"60x60": "url"}}},
+        "posicoes": {"1": {"id": 1, "nome": "Goleiro", "abreviacao": "GOL"}},
+        "status": {"7": {"id": 7, "nome": "Provável"}},
     }
 
 
@@ -79,48 +79,17 @@ def data_loader(mock_request_handler):
         "src.services.data_loaders.data_loader.RequestHandler",
         return_value=mock_request_handler,
     ):
-        loader = DataLoader()
-        loader.request_handler = mock_request_handler
+        loader = MagicMock()
+        from src.services.data_loaders.atletas import Atletas
+        from src.services.data_loaders.confrontos import Confrontos
+        from src.services.data_loaders.pontos_cedidos import PontosCedidos
+        from src.services.data_loaders.pontuacoes import Pontuacoes
+
+        loader.atletas = Atletas(mock_request_handler)
+        loader.confrontos = Confrontos(mock_request_handler)
+        loader.pontuacoes = Pontuacoes(mock_request_handler)
+        loader.pontos_cedidos = PontosCedidos()
         return loader
-
-
-@pytest.fixture
-def mock_store():
-    return MagicMock()
-
-
-@pytest.fixture
-def fresh_atletas_df():
-    return pd.DataFrame(
-        [
-            {
-                "atleta_id": 89256,
-                "rodada_id": 15,
-                "clube_id": 264,
-                "posicao_id": 1,
-                "status_id": 2,
-                "preco_num": 15.0,
-                "apelido": "Gerson",
-            }
-        ]
-    )
-
-
-@pytest.fixture
-def stale_atletas_df():
-    return pd.DataFrame(
-        [
-            {
-                "atleta_id": 89256,
-                "rodada_id": 15,
-                "clube_id": 264,
-                "posicao_id": 1,
-                "status_id": 7,
-                "preco_num": 15.5,
-                "apelido": "Gerson",
-            }
-        ]
-    )
 
 
 class TestDataLoader:
@@ -131,162 +100,67 @@ class TestDataLoader:
         assert hasattr(data_loader, "pontos_cedidos")
 
     @pytest.mark.anyio
-    async def test_fill_data_fills_atletas_first(
-        self, data_loader, mock_request_handler
-    ):
-        await data_loader.fill_data()
+    async def test_fill_atletas_returns_result(self, data_loader, mock_request_handler):
+        result = await data_loader.atletas.fill_atletas()
 
         first_call_args = mock_request_handler.make_get_request.call_args_list[0]
         assert "atletas/mercado" in first_call_args[0][0]
+        assert result.df is not None
+        assert result.rodada_id == 15
+        assert result.clubes is not None
+        assert result.posicoes is not None
+        assert result.status is not None
 
     @pytest.mark.anyio
-    async def test_fill_data_fills_confrontos_and_pontuacoes(
+    async def test_fill_confrontos_returns_dataframe(
         self, data_loader, mock_request_handler
     ):
-        await data_loader.fill_data()
+        result = await data_loader.confrontos.fill_confrontos(15)
 
-        assert mock_request_handler.make_get_request.call_count >= 3
+        assert mock_request_handler.make_get_request.call_count >= 1
+        assert result is not None
+        assert isinstance(result, pd.DataFrame)
 
     @pytest.mark.anyio
-    async def test_fill_data_raises_error_when_rodada_id_missing(
-        self, mock_request_handler
+    async def test_fill_pontuacoes_returns_dataframe(
+        self, data_loader, mock_request_handler
     ):
-        mock_request_handler.make_get_request = AsyncMock(
-            return_value={
-                "atletas": [
-                    {
-                        "atleta_id": 1,
-                        "rodada_id": None,
-                        "clube_id": 264,
-                        "posicao_id": 1,
-                        "status_id": 7,
-                        "preco_num": 10.5,
-                        "apelido": "Test",
-                    }
-                ]
+        result = await data_loader.pontuacoes.fill_pontuacoes(15)
+
+        assert mock_request_handler.make_get_request.call_count >= 1
+        assert result is not None
+        assert isinstance(result, pd.DataFrame)
+
+    @pytest.mark.anyio
+    async def test_fill_pontos_cedidos_returns_dataframe(self, data_loader):
+        from src.services.enums import Scout
+
+        pontuacoes_df = pd.DataFrame(
+            {
+                "atleta_id": [1],
+                "posicao_id": [1],
+                "clube_id": [264],
+                "rodada_id": [15],
+                "pontuacao": [5.0],
+                "pontuacao_basica": [5.0],
+                **{scout: [0] for scout in Scout.as_list()},
             }
         )
+        confrontos_df = pd.DataFrame(
+            [
+                {
+                    "clube_id": 264,
+                    "opponent_clube_id": 276,
+                    "is_mandante": True,
+                    "rodada_id": 15,
+                    "partida_id": 1001,
+                }
+            ]
+        )
 
-        with patch(
-            "src.services.data_loaders.data_loader.RequestHandler",
-            return_value=mock_request_handler,
-        ):
-            loader = DataLoader()
-            loader.request_handler = mock_request_handler
+        result = data_loader.pontos_cedidos.fill_pontos_cedidos(
+            pontuacoes_df, confrontos_df
+        )
 
-        with pytest.raises(ValueError, match="Rodada ID not found"):
-            await loader.fill_data()
-
-    @pytest.mark.anyio
-    async def test_fill_data_populates_atletas_df(self, data_loader):
-        await data_loader.fill_data()
-
-        assert not data_loader.atletas.df.empty
-
-    @pytest.mark.anyio
-    async def test_fill_data_populates_pontuacoes_df(self, data_loader):
-        await data_loader.fill_data()
-
-        assert not data_loader.pontuacoes.df.empty
-
-    @pytest.mark.anyio
-    async def test_fill_data_populates_confrontos_df(self, data_loader):
-        await data_loader.fill_data()
-
-        assert not data_loader.confrontos.df.empty
-
-    @pytest.mark.anyio
-    async def test_fill_data_populates_pontos_cedidos_df(self, data_loader):
-        await data_loader.fill_data()
-
-        assert not data_loader.pontos_cedidos.df.empty
-
-    @pytest.mark.anyio
-    async def test_fill_data_sets_rodada_id_from_atletas(self, data_loader):
-        await data_loader.fill_data()
-
-        assert data_loader.atletas.rodada_id == 15
-
-
-class TestReloadAtletasIfStale:
-    def test_reload_happens_when_redis_is_newer(
-        self, data_loader, mock_store, stale_atletas_df, fresh_atletas_df
-    ):
-        older_timestamp = datetime(2026, 4, 8, 10, 0, 0, tzinfo=timezone.utc)
-        newer_timestamp = datetime(2026, 4, 8, 12, 0, 0, tzinfo=timezone.utc)
-
-        data_loader.atletas._df = stale_atletas_df
-        data_loader.atletas._last_updated = older_timestamp
-
-        mock_store.load_last_updated.return_value = newer_timestamp
-
-        fresh_atletas_loader = Atletas.__new__(Atletas)
-        fresh_atletas_loader.columns = [
-            "atleta_id",
-            "rodada_id",
-            "clube_id",
-            "posicao_id",
-            "status_id",
-            "preco_num",
-            "apelido",
-        ]
-        fresh_atletas_loader._df = fresh_atletas_df
-        fresh_atletas_loader._rodada_id = 15
-        fresh_atletas_loader._last_updated = newer_timestamp
-        fresh_atletas_loader._clubes = {}
-        fresh_atletas_loader._posicoes = {}
-        fresh_atletas_loader._status = {}
-        fresh_atletas_loader.request_handler = data_loader.request_handler
-
-        with patch.object(
-            Atletas, "load_from_redis", return_value=fresh_atletas_loader
-        ):
-            result = data_loader.reload_atletas_if_stale(mock_store)
-
-        assert result is True
-        assert data_loader.atletas._df.iloc[0]["status_id"] == 2
-        assert data_loader.atletas.request_handler is data_loader.request_handler
-
-    def test_no_reload_when_redis_is_older(
-        self, data_loader, mock_store, stale_atletas_df
-    ):
-        older_timestamp = datetime(2026, 4, 8, 10, 0, 0, tzinfo=timezone.utc)
-        newer_in_memory_timestamp = datetime(2026, 4, 8, 12, 0, 0, tzinfo=timezone.utc)
-
-        data_loader.atletas._df = stale_atletas_df
-        data_loader.atletas._last_updated = newer_in_memory_timestamp
-
-        mock_store.load_last_updated.return_value = older_timestamp
-
-        result = data_loader.reload_atletas_if_stale(mock_store)
-
-        assert result is False
-
-    def test_no_reload_when_redis_has_no_timestamp(self, data_loader, mock_store):
-        data_loader.atletas._last_updated = datetime.now(timezone.utc)
-        mock_store.load_last_updated.return_value = None
-
-        result = data_loader.reload_atletas_if_stale(mock_store)
-
-        assert result is False
-
-    def test_no_reload_when_memory_has_no_timestamp(
-        self, data_loader, mock_store, stale_atletas_df
-    ):
-        data_loader.atletas._df = stale_atletas_df
-        data_loader.atletas._last_updated = None
-
-        mock_store.load_last_updated.return_value = datetime.now(timezone.utc)
-
-        result = data_loader.reload_atletas_if_stale(mock_store)
-
-        assert result is False
-
-    def test_no_reload_when_redis_returns_none(self, data_loader, mock_store):
-        data_loader.atletas._last_updated = datetime.now(timezone.utc)
-        mock_store.load_last_updated.return_value = datetime.now(timezone.utc)
-
-        with patch.object(Atletas, "load_from_redis", return_value=None):
-            result = data_loader.reload_atletas_if_stale(mock_store)
-
-        assert result is False
+        assert result is not None
+        assert isinstance(result, pd.DataFrame)

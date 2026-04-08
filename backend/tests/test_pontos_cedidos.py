@@ -38,20 +38,15 @@ class TestPontosCedidos:
             }
         )
 
-    def test_initial_df_is_empty_with_correct_columns(self, pontos_cedidos):
-        assert isinstance(pontos_cedidos.df, pd.DataFrame)
-        assert pontos_cedidos.df.empty
-        expected_columns = [
-            "clube_id",
-            "posicao_id",
-            "is_mandante",
-            "rodada_id",
-            "partida_id",
-            "pontuacao",
-            "pontuacao_basica",
-            *Scout.as_list(),
-        ]
-        assert list(pontos_cedidos.df.columns) == expected_columns
+    def test_fill_pontos_cedidos_returns_dataframe(
+        self, pontos_cedidos, sample_pontuacoes_df, sample_confrontos_df
+    ):
+        result = pontos_cedidos.fill_pontos_cedidos(
+            sample_pontuacoes_df, sample_confrontos_df
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert not result.empty
 
     def test_fill_pontos_cedidos_aggregates_by_opponent(
         self, pontos_cedidos, sample_pontuacoes_df, sample_confrontos_df
@@ -59,58 +54,65 @@ class TestPontosCedidos:
         sample_pontuacoes_df = sample_pontuacoes_df.copy()
         sample_pontuacoes_df["G"] = [1, 0, 0, 0]
 
-        pontos_cedidos.fill_pontos_cedidos(sample_pontuacoes_df, sample_confrontos_df)
+        result = pontos_cedidos.fill_pontos_cedidos(
+            sample_pontuacoes_df, sample_confrontos_df
+        )
 
-        assert not pontos_cedidos.df.empty
-        assert "clube_id" in pontos_cedidos.df.columns
-        assert "opponent_clube_id" not in pontos_cedidos.df.columns
+        assert "clube_id" in result.columns
+        assert "opponent_clube_id" not in result.columns
 
     def test_fill_pontos_cedidos_creates_cross_join_with_positions(
         self, pontos_cedidos, sample_pontuacoes_df, sample_confrontos_df
     ):
-        pontos_cedidos.fill_pontos_cedidos(sample_pontuacoes_df, sample_confrontos_df)
+        result = pontos_cedidos.fill_pontos_cedidos(
+            sample_pontuacoes_df, sample_confrontos_df
+        )
 
-        assert not pontos_cedidos.df.empty
-        assert "posicao_id" in pontos_cedidos.df.columns
-        assert "clube_id" in pontos_cedidos.df.columns
-        assert pontos_cedidos.df["posicao_id"].nunique() > 0
+        assert "posicao_id" in result.columns
+        assert "clube_id" in result.columns
+        assert result["posicao_id"].nunique() > 0
 
     def test_fill_pontos_cedidos_includes_is_mandante(
         self, pontos_cedidos, sample_pontuacoes_df, sample_confrontos_df
     ):
-        pontos_cedidos.fill_pontos_cedidos(sample_pontuacoes_df, sample_confrontos_df)
+        result = pontos_cedidos.fill_pontos_cedidos(
+            sample_pontuacoes_df, sample_confrontos_df
+        )
 
-        assert "is_mandante" in pontos_cedidos.df.columns
-        assert pontos_cedidos.df["is_mandante"].isin([True, False]).all()
+        assert "is_mandante" in result.columns
+        assert result["is_mandante"].isin([True, False]).all()
 
     def test_fill_pontos_cedidos_includes_rodada_id(
         self, pontos_cedidos, sample_pontuacoes_df, sample_confrontos_df
     ):
-        pontos_cedidos.fill_pontos_cedidos(sample_pontuacoes_df, sample_confrontos_df)
+        result = pontos_cedidos.fill_pontos_cedidos(
+            sample_pontuacoes_df, sample_confrontos_df
+        )
 
-        assert "rodada_id" in pontos_cedidos.df.columns
-        assert pontos_cedidos.df["rodada_id"].nunique() > 0
+        assert "rodada_id" in result.columns
+        assert result["rodada_id"].nunique() > 0
 
     def test_fill_pontos_cedidos_has_all_scout_columns(
         self, pontos_cedidos, sample_pontuacoes_df, sample_confrontos_df
     ):
-        pontos_cedidos.fill_pontos_cedidos(sample_pontuacoes_df, sample_confrontos_df)
+        result = pontos_cedidos.fill_pontos_cedidos(
+            sample_pontuacoes_df, sample_confrontos_df
+        )
 
         for scout_name in Scout.as_list():
-            assert scout_name in pontos_cedidos.df.columns
+            assert scout_name in result.columns
 
     def test_fill_pontos_cedidos_aggregates_pontuacao(
         self, pontos_cedidos, sample_pontuacoes_df, sample_confrontos_df
     ):
-        pontos_cedidos.fill_pontos_cedidos(sample_pontuacoes_df, sample_confrontos_df)
+        result = pontos_cedidos.fill_pontos_cedidos(
+            sample_pontuacoes_df, sample_confrontos_df
+        )
 
-        assert "pontuacao" in pontos_cedidos.df.columns
-        assert pontos_cedidos.df["pontuacao"].notna().any()
+        assert "pontuacao" in result.columns
+        assert result["pontuacao"].notna().any()
 
-    def test_df_property_returns_dataframe(self, pontos_cedidos):
-        assert isinstance(pontos_cedidos.df, pd.DataFrame)
-
-    def test_fill_pontos_cedidos_empty_pontuacoes(
+    def test_fill_pontos_cedidos_returns_empty_when_pontuacoes_empty(
         self, pontos_cedidos, sample_confrontos_df
     ):
         empty_pontuacoes = pd.DataFrame(
@@ -125,20 +127,24 @@ class TestPontosCedidos:
             ]
         )
 
-        pontos_cedidos.fill_pontos_cedidos(empty_pontuacoes, sample_confrontos_df)
+        result = pontos_cedidos.fill_pontos_cedidos(
+            empty_pontuacoes, sample_confrontos_df
+        )
 
-        assert pontos_cedidos.df.empty
+        assert result.empty
 
-    def test_fill_pontos_cedidos_empty_confrontos(
+    def test_fill_pontos_cedidos_returns_empty_when_confrontos_empty(
         self, pontos_cedidos, sample_pontuacoes_df
     ):
         empty_confrontos = pd.DataFrame(
             columns=["clube_id", "opponent_clube_id", "is_mandante", "rodada_id"]
         )
 
-        pontos_cedidos.fill_pontos_cedidos(sample_pontuacoes_df, empty_confrontos)
+        result = pontos_cedidos.fill_pontos_cedidos(
+            sample_pontuacoes_df, empty_confrontos
+        )
 
-        assert pontos_cedidos.df.empty
+        assert result.empty
 
     def test_fill_pontos_cedidos_computes_mean_not_sum(self, pontos_cedidos):
         pontuacoes = pd.DataFrame(
@@ -164,9 +170,9 @@ class TestPontosCedidos:
             }
         )
 
-        pontos_cedidos.fill_pontos_cedidos(pontuacoes, confrontos)
+        result = pontos_cedidos.fill_pontos_cedidos(pontuacoes, confrontos)
 
-        result = pontos_cedidos.df[pontos_cedidos.df["clube_id"] == 256].iloc[0]
+        result_row = result[result["clube_id"] == 256].iloc[0]
         expected_mean = (4.0 + 6.0 + 10.0) / 3
-        assert abs(result["pontuacao"] - expected_mean) < 0.01
-        assert abs(result["G"] - 1.0) < 0.01
+        assert abs(result_row["pontuacao"] - expected_mean) < 0.01
+        assert abs(result_row["G"] - 1.0) < 0.01

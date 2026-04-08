@@ -41,15 +41,13 @@ router = APIRouter()
 @limiter.limit("100/minute")
 async def get_atletas(
     request: Request,
-    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
-    data_loader.reload_atletas_if_stale(store)
-    df = data_loader.atletas.df.copy()
+    df = store.load_dataframe("atletas")
 
     if sort_by is not None:
         if sort_by not in df.columns:
@@ -76,15 +74,13 @@ async def get_atletas(
 @limiter.limit("100/minute")
 async def get_pontuacoes(
     request: Request,
-    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
-    data_loader.reload_pontuacoes_if_stale(store)
-    df = data_loader.pontuacoes.df.copy()
+    df = store.load_dataframe("pontuacoes")
 
     if sort_by is not None:
         if sort_by not in df.columns:
@@ -111,15 +107,13 @@ async def get_pontuacoes(
 @limiter.limit("100/minute")
 async def get_confrontos(
     request: Request,
-    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
-    data_loader.reload_confrontos_if_stale(store)
-    df = data_loader.confrontos.df.copy()
+    df = store.load_dataframe("confrontos")
 
     if sort_by is not None:
         if sort_by not in df.columns:
@@ -146,15 +140,13 @@ async def get_confrontos(
 @limiter.limit("100/minute")
 async def get_pontos_cedidos(
     request: Request,
-    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
-    data_loader.reload_pontos_cedidos_if_stale(store)
-    df = data_loader.pontos_cedidos.df.copy()
+    df = store.load_dataframe("pontos_cedidos")
 
     if sort_by is not None:
         if sort_by not in df.columns:
@@ -261,8 +253,6 @@ async def get_confrontos_detail(
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
-    data_loader.reload_pontuacoes_if_stale(store)
-    data_loader.reload_atletas_if_stale(store)
     cache_key = f"partidas:{rodada}"
     cached = store.load_json(cache_key)
 
@@ -273,12 +263,16 @@ async def get_confrontos_detail(
 
     posicoes_cache = store.load_json("posicoes")
 
-    pontuacoes_df = data_loader.pontuacoes.df.copy().assign(
-        atleta_id=lambda df_: pd.to_numeric(df_["atleta_id"], errors="coerce").astype(
-            "Int64"
+    pontuacoes_df = (
+        store.load_dataframe("pontuacoes")
+        .copy()
+        .assign(
+            atleta_id=lambda df_: pd.to_numeric(
+                df_["atleta_id"], errors="coerce"
+            ).astype("Int64")
         )
     )
-    atletas_df = data_loader.atletas.df
+    atletas_df = store.load_dataframe("atletas")
 
     pontuacoes_rodada = pontuacoes_df.loc[
         pontuacoes_df["rodada_id"] == rodada
@@ -423,12 +417,19 @@ async def update_atletas(
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
     try:
-        await data_loader.atletas.fill_atletas()
-        data_loader.atletas.save_to_redis(store)
+        result = await data_loader.atletas.fill_atletas()
+        store.save_dataframe("atletas", result.df)
+        store.save_rodada_id(result.rodada_id)
+        if result.clubes:
+            store.save_json("clubes", result.clubes)
+        if result.posicoes:
+            store.save_json("posicoes", result.posicoes)
+        if result.status:
+            store.save_json("status", result.status)
         return UpdateResponse(
             success=True,
             message="Atletas updated successfully",
-            updated_at=data_loader.atletas.last_updated,
+            updated_at=datetime.now(timezone.utc),
         )
     except Exception:
         logger.exception("Failed to update atletas")
@@ -458,7 +459,6 @@ async def get_atletas_unified(
     preco_min: int | None = Query(default=None),
     preco_max: int | None = Query(default=None),
 ):
-    data_loader.reload_atletas_if_stale(store)
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
         rodada_max = rodada_atual
@@ -492,9 +492,9 @@ async def get_atletas_unified(
         store.save_last_updated(f"partidas:{next_rodada}", datetime.now(timezone.utc))
 
     df = compute_atletas_unified(
-        atletas_df=data_loader.atletas.df,
-        pontuacoes_df=data_loader.pontuacoes.df,
-        confrontos_df=data_loader.confrontos.df,
+        atletas_df=store.load_dataframe("atletas"),
+        pontuacoes_df=store.load_dataframe("pontuacoes"),
+        confrontos_df=store.load_dataframe("confrontos"),
         rodada_min=rodada_min,
         rodada_max=rodada_max,
         is_mandante=is_mandante,
@@ -561,20 +561,17 @@ async def get_atletas_unified(
 async def get_atleta_historico(
     request: Request,
     atleta_id: int,
-    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     rodada_min: int = Query(default=1, ge=1),
     rodada_max: int | None = None,
     is_mandante: IsMandante = Query(default=IsMandante.GERAL),
 ):
-    data_loader.reload_pontuacoes_if_stale(store)
-    data_loader.reload_confrontos_if_stale(store)
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
         rodada_max = rodada_atual
 
-    pontuacoes_df = data_loader.pontuacoes.df
-    confrontos_df = data_loader.confrontos.df
+    pontuacoes_df = store.load_dataframe("pontuacoes")
+    confrontos_df = store.load_dataframe("confrontos")
     clubes_cache = store.load_json("clubes") or {}
 
     filtered = pontuacoes_df[
@@ -676,7 +673,6 @@ async def get_atleta_historico(
 @limiter.limit("100/minute")
 async def get_pontos_cedidos_unified(
     request: Request,
-    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
@@ -687,13 +683,12 @@ async def get_pontos_cedidos_unified(
     is_mandante: IsMandante = Query(default=IsMandante.GERAL),
     posicao_id: int = Query(default=1, ge=1),
 ):
-    data_loader.reload_pontos_cedidos_if_stale(store)
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
         rodada_max = rodada_atual
 
     df = compute_pontos_cedidos_unified(
-        pontos_cedidos_df=data_loader.pontos_cedidos.df,
+        pontos_cedidos_df=store.load_dataframe("pontos_cedidos"),
         rodada_min=rodada_min,
         rodada_max=rodada_max,
         is_mandante=is_mandante,
@@ -741,19 +736,16 @@ async def get_pontos_cedidos_unified(
 async def get_pontos_cedidos_unified_matches(
     request: Request,
     clube_id: int,
-    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     rodada_min: int = Query(default=1, ge=1),
     rodada_max: int | None = None,
     posicao_id: int = Query(default=1, ge=1),
 ):
-    data_loader.reload_pontos_cedidos_if_stale(store)
-    data_loader.reload_confrontos_if_stale(store)
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
         rodada_max = rodada_atual
 
-    pontos_cedidos_df = data_loader.pontos_cedidos.df
+    pontos_cedidos_df = store.load_dataframe("pontos_cedidos")
     if pontos_cedidos_df.empty:
         return MatchPontosCedidosListResponse(matches=[])
 
@@ -767,7 +759,7 @@ async def get_pontos_cedidos_unified_matches(
     if filtered.empty:
         return MatchPontosCedidosListResponse(matches=[])
 
-    confrontos_df = data_loader.confrontos.df
+    confrontos_df = store.load_dataframe("confrontos")
     filtered = filtered.merge(
         confrontos_df[["partida_id", "opponent_clube_id", "rodada_id", "is_mandante"]],
         on=["partida_id", "is_mandante", "rodada_id"],

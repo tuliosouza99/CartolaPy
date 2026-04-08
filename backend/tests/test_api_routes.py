@@ -127,6 +127,7 @@ class TestTableResponseStructure:
 class TestPagination:
     @pytest.fixture
     def fastapi_app_with_mock_data(self, fastapi_app):
+        _ = fastapi_app
         atletas_df = pd.DataFrame(
             {
                 "atleta_id": range(1, 101),
@@ -139,17 +140,53 @@ class TestPagination:
             }
         )
 
-        mock_atletas = MagicMock()
-        mock_atletas.rodada_id = 15
-        mock_atletas.df = atletas_df
+        pontuacoes_df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2],
+                "posicao_id": [1, 2],
+                "clube_id": [10, 20],
+                "rodada_id": [1, 1],
+                "pontuacao": [10.5, 8.0],
+                "pontuacao_basica": [10, 8],
+            }
+        )
 
-        mock_data_loader = MagicMock()
-        mock_data_loader.atletas = mock_atletas
-        mock_data_loader.pontuacoes = MagicMock(df=pd.DataFrame())
-        mock_data_loader.confrontos = MagicMock(df=pd.DataFrame())
-        mock_data_loader.pontos_cedidos = MagicMock(df=pd.DataFrame())
+        confrontos_df = pd.DataFrame(
+            {
+                "clube_id": [10, 20],
+                "opponent_clube_id": [20, 10],
+                "is_mandante": [True, False],
+                "rodada_id": [1, 1],
+            }
+        )
 
-        fastapi_app.state.data_loader = mock_data_loader
+        pontos_cedidos_df = pd.DataFrame(
+            {
+                "clube_id": [10, 20],
+                "posicao_id": [1, 2],
+                "is_mandante": [True, False],
+                "rodada_id": [1, 1],
+                "pontuacao": [5.0, 3.0],
+                "pontuacao_basica": [5, 3],
+            }
+        )
+
+        mock_redis_store = MagicMock()
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "atletas": atletas_df,
+                "pontuacoes": pontuacoes_df,
+                "confrontos": confrontos_df,
+                "pontos_cedidos": pontos_cedidos_df,
+            }.get(key, pd.DataFrame())
+        )
+
+        fastapi_app.state.redis_store = mock_redis_store
+
+        from src.tkq import broker
+
+        broker.state.redis_store = mock_redis_store
+
         return fastapi_app
 
     @pytest.fixture
@@ -208,17 +245,53 @@ class TestSorting:
             }
         )
 
-        mock_atletas = MagicMock()
-        mock_atletas.rodada_id = 15
-        mock_atletas.df = atletas_df
+        pontuacoes_df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2],
+                "posicao_id": [1, 2],
+                "clube_id": [10, 20],
+                "rodada_id": [1, 1],
+                "pontuacao": [10.5, 8.0],
+                "pontuacao_basica": [10, 8],
+            }
+        )
 
-        mock_data_loader = MagicMock()
-        mock_data_loader.atletas = mock_atletas
-        mock_data_loader.pontuacoes = MagicMock(df=pd.DataFrame())
-        mock_data_loader.confrontos = MagicMock(df=pd.DataFrame())
-        mock_data_loader.pontos_cedidos = MagicMock(df=pd.DataFrame())
+        confrontos_df = pd.DataFrame(
+            {
+                "clube_id": [10, 20],
+                "opponent_clube_id": [20, 10],
+                "is_mandante": [True, False],
+                "rodada_id": [1, 1],
+            }
+        )
 
-        fastapi_app.state.data_loader = mock_data_loader
+        pontos_cedidos_df = pd.DataFrame(
+            {
+                "clube_id": [10, 20],
+                "posicao_id": [1, 2],
+                "is_mandante": [True, False],
+                "rodada_id": [1, 1],
+                "pontuacao": [5.0, 3.0],
+                "pontuacao_basica": [5, 3],
+            }
+        )
+
+        mock_redis_store = MagicMock()
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "atletas": atletas_df,
+                "pontuacoes": pontuacoes_df,
+                "confrontos": confrontos_df,
+                "pontos_cedidos": pontos_cedidos_df,
+            }.get(key, pd.DataFrame())
+        )
+
+        fastapi_app.state.redis_store = mock_redis_store
+
+        from src.tkq import broker
+
+        broker.state.redis_store = mock_redis_store
+
         return fastapi_app
 
     @pytest.fixture
@@ -274,16 +347,53 @@ class TestValidation:
             }
         )
 
-        mock_atletas = MagicMock()
-        mock_atletas.df = atletas_df
+        pontuacoes_df = pd.DataFrame(
+            {
+                "atleta_id": [1],
+                "posicao_id": [1],
+                "clube_id": [10],
+                "rodada_id": [1],
+                "pontuacao": [10.5],
+                "pontuacao_basica": [10],
+            }
+        )
 
-        mock_data_loader = MagicMock()
-        mock_data_loader.atletas = mock_atletas
-        mock_data_loader.pontuacoes = MagicMock(df=pd.DataFrame())
-        mock_data_loader.confrontos = MagicMock(df=pd.DataFrame())
-        mock_data_loader.pontos_cedidos = MagicMock(df=pd.DataFrame())
+        confrontos_df = pd.DataFrame(
+            {
+                "clube_id": [10],
+                "opponent_clube_id": [20],
+                "is_mandante": [True],
+                "rodada_id": [1],
+            }
+        )
 
-        fastapi_app.state.data_loader = mock_data_loader
+        pontos_cedidos_df = pd.DataFrame(
+            {
+                "clube_id": [10],
+                "posicao_id": [1],
+                "is_mandante": [True],
+                "rodada_id": [1],
+                "pontuacao": [5.0],
+                "pontuacao_basica": [5],
+            }
+        )
+
+        mock_redis_store = MagicMock()
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "atletas": atletas_df,
+                "pontuacoes": pontuacoes_df,
+                "confrontos": confrontos_df,
+                "pontos_cedidos": pontos_cedidos_df,
+            }.get(key, pd.DataFrame())
+        )
+
+        fastapi_app.state.redis_store = mock_redis_store
+
+        from src.tkq import broker
+
+        broker.state.redis_store = mock_redis_store
+
         return fastapi_app
 
     @pytest.fixture
@@ -389,6 +499,12 @@ class TestConfrontosEndpoint:
         mock_redis_store.load_json = MagicMock(return_value=None)
         mock_redis_store.save_json = MagicMock()
         mock_redis_store.save_last_updated = MagicMock()
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "atletas": atletas_df,
+                "pontuacoes": pontuacoes_df,
+            }.get(key, pd.DataFrame())
+        )
 
         fastapi_app.state.data_loader = mock_data_loader
         fastapi_app.state.redis_store = mock_redis_store
@@ -667,6 +783,12 @@ class TestPontosCedidosUnifiedMatchesEndpoint:
                     "escudos": {"60x60": "http://escudo/20.png"},
                 },
             }
+        )
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "pontos_cedidos": pontos_cedidos_df,
+                "confrontos": confrontos_df,
+            }.get(key, pd.DataFrame())
         )
 
         fastapi_app.state.data_loader = mock_data_loader

@@ -35,16 +35,8 @@ class TestConfrontos:
     def confrontos(self, mock_request_handler):
         return Confrontos(mock_request_handler)
 
-    def test_initial_df_is_empty_with_correct_columns(self, confrontos):
-        assert isinstance(confrontos.df, pd.DataFrame)
-        assert confrontos.df.empty
-        assert list(confrontos.df.columns) == [
-            "clube_id",
-            "opponent_clube_id",
-            "is_mandante",
-            "rodada_id",
-            "partida_id",
-        ]
+    def test_confrontos_has_request_handler(self, confrontos):
+        assert confrontos.request_handler is not None
 
     @pytest.mark.anyio
     async def test_fill_confrontos_rodada_fetches_correct_url(
@@ -155,17 +147,33 @@ class TestConfrontos:
         assert confrontos.request_handler.make_get_request.call_count == 3
 
     @pytest.mark.anyio
-    async def test_fill_confrontos_concatenates_all_rodadas(
+    async def test_fill_confrontos_returns_dataframe(
         self, confrontos, sample_api_response
     ):
         confrontos.request_handler.make_get_request = AsyncMock(
             return_value=sample_api_response
         )
 
-        await confrontos.fill_confrontos(2)
+        result = await confrontos.fill_confrontos(2)
 
         expected_rows = 4 * 2
-        assert len(confrontos.df) == expected_rows
+        assert len(result) == expected_rows
+        assert isinstance(result, pd.DataFrame)
 
-    def test_df_property_returns_dataframe(self, confrontos):
-        assert isinstance(confrontos.df, pd.DataFrame)
+    @pytest.mark.anyio
+    async def test_fill_confrontos_returns_correct_columns(
+        self, confrontos, sample_api_response
+    ):
+        confrontos.request_handler.make_get_request = AsyncMock(
+            return_value=sample_api_response
+        )
+
+        result = await confrontos.fill_confrontos(1)
+
+        assert list(result.columns) == [
+            "clube_id",
+            "opponent_clube_id",
+            "is_mandante",
+            "rodada_id",
+            "partida_id",
+        ]

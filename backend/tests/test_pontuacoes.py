@@ -38,19 +38,8 @@ class TestPontuacoes:
     def pontuacoes(self, mock_request_handler):
         return Pontuacoes(mock_request_handler)
 
-    def test_initial_df_is_empty_with_correct_columns(self, pontuacoes):
-        assert isinstance(pontuacoes.df, pd.DataFrame)
-        assert pontuacoes.df.empty
-        expected_columns = [
-            "atleta_id",
-            "posicao_id",
-            "clube_id",
-            "rodada_id",
-            "pontuacao",
-            "pontuacao_basica",
-            *Scout.as_list(),
-        ]
-        assert list(pontuacoes.df.columns) == expected_columns
+    def test_pontuacoes_has_request_handler(self, pontuacoes):
+        assert pontuacoes.request_handler is not None
 
     @pytest.mark.anyio
     async def test_fill_pontuacoes_rodada_fetches_correct_url(
@@ -163,17 +152,18 @@ class TestPontuacoes:
         assert pontuacoes.request_handler.make_get_request.call_count == 3
 
     @pytest.mark.anyio
-    async def test_fill_pontuacoes_concatenates_all_rodadas(
+    async def test_fill_pontuacoes_returns_dataframe(
         self, pontuacoes, sample_api_response
     ):
         pontuacoes.request_handler.make_get_request = AsyncMock(
             return_value=sample_api_response
         )
 
-        await pontuacoes.fill_pontuacoes(3)
+        result = await pontuacoes.fill_pontuacoes(3)
 
         expected_rows = len(sample_api_response["atletas"]) * 3
-        assert len(pontuacoes.df) == expected_rows
+        assert len(result) == expected_rows
+        assert isinstance(result, pd.DataFrame)
 
     @pytest.mark.anyio
     async def test_fill_pontuacoes_includes_all_scout_columns(
@@ -183,13 +173,10 @@ class TestPontuacoes:
             return_value=sample_api_response
         )
 
-        await pontuacoes.fill_pontuacoes(1)
+        result = await pontuacoes.fill_pontuacoes(1)
 
         for scout_name in Scout.as_list():
-            assert scout_name in pontuacoes.df.columns
-
-    def test_df_property_returns_dataframe(self, pontuacoes):
-        assert isinstance(pontuacoes.df, pd.DataFrame)
+            assert scout_name in result.columns
 
     @pytest.mark.anyio
     async def test_fill_pontuacoes_fills_missing_scouts_with_zero(self, pontuacoes):
