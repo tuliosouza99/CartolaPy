@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import TableView from "../components/TableView";
 import RoundIntervalSlider from "../components/RoundIntervalSlider";
 import MandoToggle from "../components/MandoToggle";
+import PontosCedidosScoutChart from "../components/PontosCedidosScoutChart";
 
 const SCOUTS_BY_POSITION = {
   1: ["SG", "DP", "DE", "GS", "CA", "CV", "FC", "GC", "PC"],
@@ -279,50 +280,13 @@ function PontosCedidosUnified() {
 
       return (
         <div style={{ padding: "1rem" }}>
-          {scoutEntries.length > 0 && (
-            <>
-              <div
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  color: "var(--text-secondary)",
-                  marginBottom: "0.5rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Média Cedida por Scout
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "0.5rem",
-                  marginBottom: "1rem",
-                }}
-              >
-                {scoutEntries.map(([key, value]) => (
-                  <span
-                    key={key}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.25rem",
-                      padding: "0.25rem 0.5rem",
-                      background: "var(--bg-card)",
-                      borderRadius: "var(--radius-sm)",
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.75rem",
-                      color: "var(--text-primary)",
-                    }}
-                  >
-                    <span style={{ fontWeight: 600 }}>{key}</span>
-                    <span style={{ color: "var(--orange)" }}>{Number(value).toFixed(2)}</span>
-                  </span>
-                ))}
-              </div>
-            </>
+          {row.scout_contributions && Object.keys(row.scout_contributions).length > 0 && (
+            <PontosCedidosScoutChart
+              scoutContributions={row.scout_contributions}
+              mediaCedida={row.media_cedida}
+              positionScouts={positionScouts}
+              totalJogos={row.total_jogos}
+            />
           )}
 
           <div

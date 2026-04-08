@@ -701,6 +701,8 @@ async def get_pontos_cedidos_unified(
         "media_cedida_basica",
         "total_jogos",
         "scouts",
+        "scout_contributions",
+        "total_points",
     ]
 
     df = df.loc[:, [c for c in output_cols if c in df.columns]]
