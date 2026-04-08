@@ -42,11 +42,13 @@ router = APIRouter()
 async def get_atletas(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
+    data_loader.reload_atletas_if_stale(store)
     df = data_loader.atletas.df.copy()
 
     if sort_by is not None:
@@ -75,11 +77,13 @@ async def get_atletas(
 async def get_pontuacoes(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
+    data_loader.reload_pontuacoes_if_stale(store)
     df = data_loader.pontuacoes.df.copy()
 
     if sort_by is not None:
@@ -108,11 +112,13 @@ async def get_pontuacoes(
 async def get_confrontos(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
+    data_loader.reload_confrontos_if_stale(store)
     df = data_loader.confrontos.df.copy()
 
     if sort_by is not None:
@@ -141,11 +147,13 @@ async def get_confrontos(
 async def get_pontos_cedidos(
     request: Request,
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
     sort_direction: SortDirection = Query(default=SortDirection.ASC),
 ):
+    data_loader.reload_pontos_cedidos_if_stale(store)
     df = data_loader.pontos_cedidos.df.copy()
 
     if sort_by is not None:
@@ -253,6 +261,8 @@ async def get_confrontos_detail(
     data_loader: Annotated[DataLoader, Depends(get_data_loader)],
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
+    data_loader.reload_pontuacoes_if_stale(store)
+    data_loader.reload_atletas_if_stale(store)
     cache_key = f"partidas:{rodada}"
     cached = store.load_json(cache_key)
 
@@ -448,6 +458,7 @@ async def get_atletas_unified(
     preco_min: int | None = Query(default=None),
     preco_max: int | None = Query(default=None),
 ):
+    data_loader.reload_atletas_if_stale(store)
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
         rodada_max = rodada_atual
@@ -556,6 +567,8 @@ async def get_atleta_historico(
     rodada_max: int | None = None,
     is_mandante: IsMandante = Query(default=IsMandante.GERAL),
 ):
+    data_loader.reload_pontuacoes_if_stale(store)
+    data_loader.reload_confrontos_if_stale(store)
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
         rodada_max = rodada_atual
@@ -674,6 +687,7 @@ async def get_pontos_cedidos_unified(
     is_mandante: IsMandante = Query(default=IsMandante.GERAL),
     posicao_id: int = Query(default=1, ge=1),
 ):
+    data_loader.reload_pontos_cedidos_if_stale(store)
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
         rodada_max = rodada_atual
@@ -733,6 +747,8 @@ async def get_pontos_cedidos_unified_matches(
     rodada_max: int | None = None,
     posicao_id: int = Query(default=1, ge=1),
 ):
+    data_loader.reload_pontos_cedidos_if_stale(store)
+    data_loader.reload_confrontos_if_stale(store)
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
         rodada_max = rodada_atual

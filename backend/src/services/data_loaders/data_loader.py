@@ -77,3 +77,70 @@ class DataLoader:
         self.pontos_cedidos = pontos_cedidos
 
         return True
+
+    def reload_atletas_if_stale(self, store: RedisDataFrameStore) -> bool:
+        redis_updated = store.load_last_updated(Atletas.REDIS_KEY)
+        if redis_updated is None:
+            return False
+        if self.atletas.last_updated is None:
+            return False
+        if redis_updated > self.atletas.last_updated:
+            atletas = Atletas.load_from_redis(store)
+            if atletas is None:
+                return False
+            atletas.request_handler = self.request_handler
+            self.atletas = atletas
+            return True
+        return False
+
+    def reload_confrontos_if_stale(self, store: RedisDataFrameStore) -> bool:
+        redis_updated = store.load_last_updated(Confrontos.REDIS_KEY)
+        if redis_updated is None:
+            return False
+        if self.confrontos.last_updated is None:
+            return False
+        if redis_updated > self.confrontos.last_updated:
+            confrontos = Confrontos.load_from_redis(store)
+            if confrontos is None:
+                return False
+            confrontos.request_handler = self.request_handler
+            self.confrontos = confrontos
+            return True
+        return False
+
+    def reload_pontuacoes_if_stale(self, store: RedisDataFrameStore) -> bool:
+        redis_updated = store.load_last_updated(Pontuacoes.REDIS_KEY)
+        if redis_updated is None:
+            return False
+        if self.pontuacoes.last_updated is None:
+            return False
+        if redis_updated > self.pontuacoes.last_updated:
+            pontuacoes = Pontuacoes.load_from_redis(store)
+            if pontuacoes is None:
+                return False
+            pontuacoes.request_handler = self.request_handler
+            self.pontuacoes = pontuacoes
+            return True
+        return False
+
+    def reload_pontos_cedidos_if_stale(self, store: RedisDataFrameStore) -> bool:
+        redis_updated = store.load_last_updated(PontosCedidos.REDIS_KEY)
+        if redis_updated is None:
+            return False
+        if self.pontos_cedidos.last_updated is None:
+            return False
+        if redis_updated > self.pontos_cedidos.last_updated:
+            pontos_cedidos = PontosCedidos.load_from_redis(store)
+            if pontos_cedidos is None:
+                return False
+            self.pontos_cedidos = pontos_cedidos
+            return True
+        return False
+
+    def reload_all_if_stale(self, store: RedisDataFrameStore) -> dict[str, bool]:
+        return {
+            "atletas": self.reload_atletas_if_stale(store),
+            "confrontos": self.reload_confrontos_if_stale(store),
+            "pontuacoes": self.reload_pontuacoes_if_stale(store),
+            "pontos_cedidos": self.reload_pontos_cedidos_if_stale(store),
+        }
