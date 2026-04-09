@@ -525,3 +525,135 @@ class TestValidation:
     def test_invalid_is_mandante_returns_422(self, client):
         response = client.get("/api/tables/atletas-unified?is_mandante=invalid")
         assert response.status_code == 422
+
+
+class TestSortByScout:
+    @pytest.fixture
+    def fastapi_app_with_scout_data(self, fastapi_app):
+        atletas_df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2, 3],
+                "rodada_id": [15, 15, 15],
+                "clube_id": [10, 20, 30],
+                "posicao_id": [1, 1, 1],
+                "status_id": [7, 7, 7],
+                "preco_num": [100.0, 50.0, 75.0],
+                "apelido": ["Player A", "Player B", "Player C"],
+            }
+        )
+
+        pontuacoes_df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2, 3],
+                "posicao_id": [1, 1, 1],
+                "clube_id": [10, 20, 30],
+                "rodada_id": [1, 1, 1],
+                "pontuacao": [10.0, 8.0, 6.0],
+                "pontuacao_basica": [10, 8, 6],
+                **{scout: [0, 0, 0] for scout in Scout.as_list()},
+            }
+        )
+        pontuacoes_df.loc[pontuacoes_df["atleta_id"] == 1, "DS"] = 5
+        pontuacoes_df.loc[pontuacoes_df["atleta_id"] == 2, "DS"] = 2
+        pontuacoes_df.loc[pontuacoes_df["atleta_id"] == 3, "DS"] = 0
+
+        confrontos_df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2, 3],
+                "clube_id": [10, 20, 30],
+                "opponent_clube_id": [20, 10, 10],
+                "is_mandante": [True, False, True],
+                "rodada_id": [1, 1, 1],
+            }
+        )
+
+        mock_atletas = MagicMock()
+        mock_atletas.rodada_id = 15
+        mock_atletas.df = atletas_df
+
+        mock_pontuacoes = MagicMock()
+        mock_pontuacoes.df = pontuacoes_df
+
+        mock_confrontos = MagicMock()
+        mock_confrontos.df = confrontos_df
+
+        mock_request_handler = MagicMock()
+        mock_request_handler.make_get_request = AsyncMock(return_value={"partidas": []})
+
+        mock_data_loader = MagicMock()
+        mock_data_loader.atletas = mock_atletas
+        mock_data_loader.pontuacoes = mock_pontuacoes
+        mock_data_loader.confrontos = mock_confrontos
+        mock_data_loader.pontos_cedidos = MagicMock(df=pd.DataFrame())
+        mock_data_loader.request_handler = mock_request_handler
+
+        mock_redis_store = MagicMock()
+
+        def load_json_side_effect(key):
+            if key.startswith("partidas:"):
+                return None
+            return {
+                "clubes": {
+                    "10": {
+                        "id": 10,
+                        "nome": "Team A",
+                        "escudos": {"60x60": "https://escudo/10.png"},
+                    },
+                    "20": {
+                        "id": 20,
+                        "nome": "Team B",
+                        "escudos": {"60x60": "https://escudo/20.png"},
+                    },
+                    "30": {
+                        "id": 30,
+                        "nome": "Team C",
+                        "escudos": {"60x60": "https://escudo/30.png"},
+                    },
+                },
+                "posicoes": {"1": {"id": 1, "nome": "Atacante", "abreviacao": "ATA"}},
+                "status": {"7": {"id": 7, "nome": "Provável"}},
+            }.get(key)
+
+        mock_redis_store.load_json = MagicMock(side_effect=load_json_side_effect)
+        mock_redis_store.load_dataframe = MagicMock(
+            side_effect=lambda key: {
+                "atletas": atletas_df,
+                "pontuacoes": pontuacoes_df,
+                "confrontos": confrontos_df,
+            }.get(key, pd.DataFrame())
+        )
+        mock_redis_store.exists = MagicMock(return_value=True)
+        mock_redis_store.load_rodada_id = MagicMock(return_value=15)
+
+        fastapi_app.state.data_loader = mock_data_loader
+        fastapi_app.state.redis_store = mock_redis_store
+        fastapi_app.dependency_overrides[get_redis_store] = lambda: mock_redis_store
+
+        return fastapi_app
+
+    @pytest.fixture
+    def client(self, fastapi_app_with_scout_data):
+        return TestClient(fastapi_app_with_scout_data)
+
+    def test_sort_by_scout_orders_by_scout_count(self, client):
+        response = client.get("/api/tables/atletas-unified?scout=DS")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["data"][0]["apelido"] == "Player C"
+        assert data["data"][1]["apelido"] == "Player B"
+        assert data["data"][2]["apelido"] == "Player A"
+
+    def test_sort_by_scout_descending(self, client):
+        response = client.get(
+            "/api/tables/atletas-unified?scout=DS&sort_direction=desc"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["data"][0]["apelido"] == "Player A"
+
+    def test_sort_by_scut_ascending(self, client):
+        response = client.get("/api/tables/atletas-unified?scout=DS&sort_direction=asc")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["data"][0]["apelido"] == "Player C"
+        assert data["data"][2]["apelido"] == "Player A"

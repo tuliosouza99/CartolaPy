@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import TableView from "../components/TableView";
 import RoundIntervalSlider from "../components/RoundIntervalSlider";
 import MandoToggle from "../components/MandoToggle";
+import ScoutSelect, { SCOUT_BY_CODE } from "../components/ScoutSelect";
 import PontosCedidosScoutChart from "../components/PontosCedidosScoutChart";
 
 const SCOUTS_BY_POSITION = {
@@ -21,6 +22,7 @@ function PontosCedidosUnified() {
   const [filterOptions, setFilterOptions] = useState({ clubes: {}, posicoes: [] });
   const [sortBy, setSortBy] = useState("media_cedida");
   const [sortDirection, setSortDirection] = useState("desc");
+  const [scout, setScout] = useState(null);
   const [expandedMatches, setExpandedMatches] = useState({});
   const [expandedRows, setExpandedRows] = useState(new Set());
   const loadingMatchesRef = useRef(new Set());
@@ -43,6 +45,7 @@ function PontosCedidosUnified() {
     if (params.get("posicao_id")) urlState.posicao_id = parseInt(params.get("posicao_id"), 10);
     if (params.get("sort_by")) urlState.sort_by = params.get("sort_by");
     if (params.get("sort_direction")) urlState.sort_direction = params.get("sort_direction");
+    if (params.get("scout")) urlState.scout = params.get("scout");
 
     if (Object.keys(urlState).length === 0) {
       const saved = sessionStorage.getItem(ROUTE);
@@ -54,6 +57,7 @@ function PontosCedidosUnified() {
         if (params.get("posicao_id")) urlState.posicao_id = parseInt(params.get("posicao_id"), 10);
         if (params.get("sort_by")) urlState.sort_by = params.get("sort_by");
         if (params.get("sort_direction")) urlState.sort_direction = params.get("sort_direction");
+        if (params.get("scout")) urlState.scout = params.get("scout");
       }
     }
 
@@ -75,6 +79,9 @@ function PontosCedidosUnified() {
     if (urlState.sort_direction) {
       setSortDirection(urlState.sort_direction);
     }
+    if (urlState.scout) {
+      setScout(urlState.scout);
+    }
     urlRestored.current = true;
   }, []);
 
@@ -87,14 +94,22 @@ function PontosCedidosUnified() {
     if (isMandante !== "geral") params.set("is_mandante", isMandante);
     if (selectedPosition !== 1) params.set("posicao_id", selectedPosition);
     if (sortBy !== "media_cedida") params.set("sort_by", sortBy);
-    if (sortDirection !== "desc") params.set("sort_direction", sortDirection);
+    params.set("sort_direction", sortDirection);
+    if (scout) params.set("scout", scout);
 
     const queryString = params.toString();
     sessionStorage.setItem(ROUTE, queryString);
 
     const newUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
     window.history.replaceState({}, "", newUrl);
-  }, [rodadaRange, isMandante, selectedPosition, statusData, sortBy, sortDirection]);
+  }, [rodadaRange, isMandante, selectedPosition, statusData, sortBy, sortDirection, scout]);
+
+  useEffect(() => {
+    if (!urlRestored.current) return;
+    setScout(null);
+    setSortBy("media_cedida");
+    setSortDirection("desc");
+  }, [selectedPosition]);
 
   const redefinirFiltros = useCallback(() => {
     setRodadaRange({ min: 1, max: statusData?.rodada_atual || 1 });
@@ -102,6 +117,7 @@ function PontosCedidosUnified() {
     setSelectedPosition(1);
     setSortBy("media_cedida");
     setSortDirection("desc");
+    setScout(null);
     sessionStorage.removeItem(ROUTE);
     window.history.replaceState({}, "", window.location.pathname);
   }, [statusData]);
@@ -156,51 +172,73 @@ function PontosCedidosUnified() {
   );
 
   const columns = useMemo(
-    () => [
-      {
-        key: "clube_escudo",
-        label: "Clube",
-        sortable: false,
-        renderCell: (row) => (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <img
-              src={getClubeEscudo(row.clube_id)}
-              alt="clube"
-              style={{
-                width: "24px",
-                height: "24px",
-                objectFit: "contain",
-              }}
-              onError={(e) => {
-                e.target.style.display = "none";
-              }}
-            />
-            <span>{getClubeName(row.clube_id)}</span>
-          </div>
-        ),
-      },
-      {
-        key: "media_cedida",
-        label: "Média Cedida",
-        sortable: true,
-        renderCell: (row) => {
-          const val = row.media_cedida;
-          if (val == null) return "-";
-          return Number(val).toFixed(2);
+    () => {
+      const baseColumns = [
+        {
+          key: "clube_escudo",
+          label: "Clube",
+          sortable: false,
+          renderCell: (row) => (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <img
+                src={getClubeEscudo(row.clube_id)}
+                alt="clube"
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  objectFit: "contain",
+                }}
+                onError={(e) => {
+                  e.target.style.display = "none";
+                }}
+              />
+              <span>{getClubeName(row.clube_id)}</span>
+            </div>
+          ),
         },
-      },
-      {
-        key: "media_cedida_basica",
-        label: "Média Cedida Básica",
-        sortable: true,
-        renderCell: (row) => {
-          const val = row.media_cedida_basica;
-          return val != null ? Number(val).toFixed(2) : "-";
+        {
+          key: "media_cedida",
+          label: "Média Cedida",
+          sortable: true,
+          renderCell: (row) => {
+            const val = row.media_cedida;
+            if (val == null) return "-";
+            return Number(val).toFixed(2);
+          },
         },
-      },
-      { key: "total_jogos", label: "Total de Jogos", sortable: true },
-    ],
-    [getClubeEscudo, getClubeName]
+        {
+          key: "media_cedida_basica",
+          label: "Média Cedida Básica",
+          sortable: true,
+          renderCell: (row) => {
+            const val = row.media_cedida_basica;
+            return val != null ? Number(val).toFixed(2) : "-";
+          },
+        },
+        { key: "total_jogos", label: "Total de Jogos", sortable: true },
+      ];
+
+      if (scout && SCOUT_BY_CODE[scout]) {
+        const scoutInfo = SCOUT_BY_CODE[scout];
+        baseColumns.push({
+          key: `scout_${scout}`,
+          label: scoutInfo.code,
+          sortable: true,
+          renderCell: (row) => {
+            const scouts = row.scouts || {};
+            const value = scouts[scout] || 0;
+            return (
+              <span style={{ fontFamily: "var(--font-mono)", color: "var(--orange)" }}>
+                {value}
+              </span>
+            );
+          },
+        });
+      }
+
+      return baseColumns;
+    },
+    [scout, getClubeEscudo, getClubeName]
   );
 
   const fetchMatchData = useCallback(
@@ -381,31 +419,46 @@ function PontosCedidosUnified() {
 
   const topBarComponent = useMemo(
     () => (
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-        <RoundIntervalSlider
-          min={1}
-          max={statusData?.rodada_atual || 1}
-          value={rodadaRange}
-          onChange={setRodadaRange}
-        />
-        <MandoToggle value={isMandante} onChange={setIsMandante} />
-        <button
-          onClick={redefinirFiltros}
-          style={{
-            padding: "0.375rem 0.75rem",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            color: "var(--text-secondary)",
-            cursor: "pointer",
-            fontSize: "0.875rem",
-          }}
-        >
-          Redefinir Filtros
-        </button>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap", justifyContent: "space-between", width: "100%" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <RoundIntervalSlider
+            min={1}
+            max={statusData?.rodada_atual || 1}
+            value={rodadaRange}
+            onChange={setRodadaRange}
+          />
+          <MandoToggle value={isMandante} onChange={setIsMandante} />
+          <ScoutSelect
+            value={scout}
+            onChange={(newScout) => {
+              setScout(newScout);
+              if (newScout) {
+                setSortBy(newScout);
+              } else {
+                setSortBy("media_cedida");
+                setSortDirection("desc");
+              }
+            }}
+            scouts={SCOUTS_BY_POSITION[selectedPosition]}
+          />
+          <button
+            onClick={redefinirFiltros}
+            style={{
+              padding: "0.375rem 0.75rem",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              color: "var(--text-secondary)",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+            }}
+          >
+            Redefinir Filtros
+          </button>
+        </div>
       </div>
     ),
-    [rodadaRange, isMandante, statusData?.rodada_atual, redefinirFiltros]
+    [rodadaRange, isMandante, statusData?.rodada_atual, redefinirFiltros, scout, selectedPosition]
   );
 
   const currentPosition = filterOptions.posicoes.find((p) => p.id === selectedPosition);
@@ -457,8 +510,9 @@ function PontosCedidosUnified() {
       rodada_max: rodadaRange.max,
       is_mandante: isMandante,
       posicao_id: selectedPosition,
+      ...(scout && { scout }),
     }),
-    [rodadaRange, isMandante, selectedPosition]
+    [rodadaRange, isMandante, selectedPosition, scout]
   );
 
   const POSICAO_LABELS = {
@@ -470,7 +524,7 @@ function PontosCedidosUnified() {
     tec: "Técnico",
   };
 
-  const subtitleMando = isMandante === "mandante" ? "mandantes" : isMandante === "visitante" ? "visitantes" : "jogadores";
+  const subtitleMando = isMandante === "mandante" ? "mandante" : isMandante === "visitante" ? "visitante" : "de forma geral";
   const subtitlePosicao = currentPosition?.abreviacao ? POSICAO_LABELS[currentPosition.abreviacao] || currentPosition.abreviacao : "";
 
   return (
@@ -478,7 +532,7 @@ function PontosCedidosUnified() {
       {positionTabsComponent}
       <TableView
         title="Pontos Cedidos"
-        subtitle={`Pontos Cedidos por cada clube para ${subtitleMando} da posição ${subtitlePosicao}`}
+        subtitle={`Pontos Cedidos, em média, para um atleta da posição ${subtitlePosicao} atuando como ${subtitleMando}`}
         endpoint="pontos-cedidos-unified"
         columns={columns}
         filterComponent={topBarComponent}

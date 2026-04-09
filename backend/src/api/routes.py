@@ -474,6 +474,7 @@ async def get_atletas_unified(
     status_ids: str | None = Query(default=None),
     preco_min: int | None = Query(default=None),
     preco_max: int | None = Query(default=None),
+    scout: str | None = Query(default=None),
 ):
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
@@ -537,6 +538,8 @@ async def get_atletas_unified(
         status_ids=parsed_status_ids,
         preco_min=preco_min,
         preco_max=preco_max,
+        scout=scout,
+        scout_ascending=sort_direction == SortDirection.ASC,
     )
 
     output_cols = [
@@ -561,10 +564,15 @@ async def get_atletas_unified(
 
     if sort_by is not None:
         if sort_by not in df.columns:
-            raise HTTPException(
-                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            scout_col = f"scout_{scout}" if scout else None
+            if scout is None or (sort_by != scout and sort_by != scout_col):
+                raise HTTPException(
+                    status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+                )
+        else:
+            df = df.sort_values(
+                by=sort_by, ascending=sort_direction == SortDirection.ASC
             )
-        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
 
     total = len(df)
     offset = (page - 1) * page_size
@@ -716,6 +724,7 @@ async def get_pontos_cedidos_unified(
     rodada_max: int | None = None,
     is_mandante: IsMandante = Query(default=IsMandante.GERAL),
     posicao_id: int = Query(default=1, ge=1),
+    scout: str | None = Query(default=None),
 ):
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
@@ -731,6 +740,8 @@ async def get_pontos_cedidos_unified(
         rodada_max=rodada_max,
         is_mandante=is_mandante,
         posicao_id=posicao_id,
+        scout=scout,
+        scout_ascending=sort_direction == SortDirection.ASC,
     )
 
     output_cols = [
@@ -747,10 +758,15 @@ async def get_pontos_cedidos_unified(
 
     if sort_by is not None:
         if sort_by not in df.columns:
-            raise HTTPException(
-                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            scout_col = f"scout_{scout}" if scout else None
+            if scout is None or (sort_by != scout and sort_by != scout_col):
+                raise HTTPException(
+                    status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+                )
+        else:
+            df = df.sort_values(
+                by=sort_by, ascending=sort_direction == SortDirection.ASC
             )
-        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
 
     total = len(df)
     offset = (page - 1) * page_size
@@ -869,6 +885,7 @@ async def get_pontos_conquistados_unified(
     is_mandante: IsMandante = Query(default=IsMandante.GERAL),
     posicao_id: int = Query(default=1, ge=1),
     status_ids: str | None = Query(default=None),
+    scout: str | None = Query(default=None),
 ):
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
@@ -927,6 +944,8 @@ async def get_pontos_conquistados_unified(
         is_mandante=is_mandante,
         posicao_id=posicao_id,
         status_ids=parsed_status_ids,
+        scout=scout,
+        scout_ascending=sort_direction == SortDirection.ASC,
     )
 
     output_cols = [
@@ -943,10 +962,15 @@ async def get_pontos_conquistados_unified(
 
     if sort_by is not None:
         if sort_by not in df.columns:
-            raise HTTPException(
-                status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+            scout_col = f"scout_{scout}" if scout else None
+            if scout is None or (sort_by != scout and sort_by != scout_col):
+                raise HTTPException(
+                    status_code=422, detail=f"Invalid sort_by column: {sort_by}"
+                )
+        else:
+            df = df.sort_values(
+                by=sort_by, ascending=sort_direction == SortDirection.ASC
             )
-        df = df.sort_values(by=sort_by, ascending=sort_direction == SortDirection.ASC)
 
     total = len(df)
     offset = (page - 1) * page_size

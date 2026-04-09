@@ -35,10 +35,8 @@ function PontosCedidosScoutChart({
         return {
           scout,
           percentage: contrib?.percentage || 0,
-          perGame: contrib?.raw_sum ? contrib.raw_sum / jogos : 0,
-          pointsPerGame: contrib?.points_contribution
-            ? contrib.points_contribution / jogos
-            : 0,
+          perGame: contrib?.raw_sum || 0,
+          pointsPerGame: contrib?.points_contribution || 0,
         };
       })
       .sort((a, b) => b.percentage - a.percentage);

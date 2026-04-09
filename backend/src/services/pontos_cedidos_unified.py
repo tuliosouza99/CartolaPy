@@ -11,6 +11,8 @@ def compute_pontos_cedidos_unified(
     rodada_max: int,
     is_mandante: Literal["geral", "mandante", "visitante"],
     posicao_id: int,
+    scout: str | None = None,
+    scout_ascending: bool = False,
 ) -> pd.DataFrame:
     scout_cols = Scout.as_list()
 
@@ -69,11 +71,16 @@ def compute_pontos_cedidos_unified(
     scout_pts = scout_sums.mul(scout_value_series, axis=1)
     total_points = scout_pts.sum(axis=1)
 
+    scout_avgs = scout_sums.div(pont_agg["total_jogos"], axis=0)
+
+    scout_avg_pts = scout_avgs.mul(scout_value_series, axis=1)
+    avg_total_points = scout_avg_pts.sum(axis=1)
+
     long = (
         pd.concat(
             [
-                scout_sums.stack().rename("raw_sum"),
-                scout_pts.stack().rename("points_contribution"),
+                scout_avgs.stack().rename("raw_sum"),
+                scout_avg_pts.stack().rename("points_contribution"),
             ],
             axis=1,
         )
@@ -81,7 +88,7 @@ def compute_pontos_cedidos_unified(
         .rename(columns={"level_0": "row_idx", "level_1": "scout"})
         .query("raw_sum != 0")
         .assign(
-            total_raw=lambda df_: df_["row_idx"].map(total_points),
+            total_raw=lambda df_: df_["row_idx"].map(avg_total_points),
             raw_sum=lambda df_: df_["raw_sum"].round(2),
             points_contribution=lambda df_: df_["points_contribution"].round(2),
             percentage=lambda df_: (
@@ -106,10 +113,28 @@ def compute_pontos_cedidos_unified(
         for i in range(len(pont_agg))
     ]
 
-    return pont_agg.assign(
+    result = pont_agg.assign(
         media_cedida=lambda df_: df_["media_cedida"].round(2),
         media_cedida_basica=lambda df_: df_["media_cedida_basica"].round(2),
-        scouts=lambda df_: df_[scout_cols].round(2).to_dict(orient="records"),
+        scouts=lambda df_: scout_avgs.round(2).to_dict(orient="records"),
         scout_contributions=scout_contributions_list,
         total_points=total_points.values,
     )
+
+    scout_avg_series = (
+        scout_avgs[scout].reset_index(drop=True)
+        if scout in scout_avgs.columns
+        else None
+    )
+
+    if scout is not None and scout in Scout.as_list() and scout_avg_series is not None:
+        result = result.reset_index(drop=True)
+        result["__sort_key"] = scout_avg_series.values
+        result = result.sort_values(
+            by="__sort_key",
+            ascending=scout_ascending,
+            na_position="last",
+        )
+        result = result.drop(columns=["__sort_key"])
+
+    return result

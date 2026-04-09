@@ -12,6 +12,8 @@ def compute_pontos_conquistados_unified(
     is_mandante: Literal["geral", "mandante", "visitante"],
     posicao_id: int,
     status_ids: list[int] | None = None,
+    scout: str | None = None,
+    scout_ascending: bool = False,
 ) -> pd.DataFrame:
     scout_cols = Scout.as_list()
 
@@ -59,6 +61,7 @@ def compute_pontos_conquistados_unified(
             media_conquistada=("pontuacao", "mean"),
             media_conquistada_basica=("pontuacao_basica", "mean"),
             total_jogos=("rodada_id", "nunique"),
+            total_atletas=("atleta_id", "nunique"),
             **{scout: (scout, "sum") for scout in scout_cols},
         )
         .reset_index()
@@ -73,11 +76,18 @@ def compute_pontos_conquistados_unified(
     scout_pts = scout_sums.mul(scout_value_series, axis=1)
     total_points = scout_pts.sum(axis=1)
 
+    scout_avgs = scout_sums.div(pont_agg["total_jogos"], axis=0).div(
+        pont_agg["total_atletas"].where(pont_agg["total_atletas"] > 0, 1), axis=0
+    )
+
+    scout_avg_pts = scout_avgs.mul(scout_value_series, axis=1)
+    avg_total_points = scout_avg_pts.sum(axis=1)
+
     long = (
         pd.concat(
             [
-                scout_sums.stack().rename("raw_sum"),
-                scout_pts.stack().rename("points_contribution"),
+                scout_avgs.stack().rename("raw_sum"),
+                scout_avg_pts.stack().rename("points_contribution"),
             ],
             axis=1,
         )
@@ -85,7 +95,7 @@ def compute_pontos_conquistados_unified(
         .rename(columns={"level_0": "row_idx", "level_1": "scout"})
         .query("raw_sum != 0")
         .assign(
-            total_raw=lambda df_: df_["row_idx"].map(total_points),
+            total_raw=lambda df_: df_["row_idx"].map(avg_total_points),
             raw_sum=lambda df_: df_["raw_sum"].round(2),
             points_contribution=lambda df_: df_["points_contribution"].round(2),
             percentage=lambda df_: (
@@ -110,10 +120,17 @@ def compute_pontos_conquistados_unified(
         for i in range(len(pont_agg))
     ]
 
-    return pont_agg.assign(
+    result = pont_agg.assign(
         media_conquistada=lambda df_: df_["media_conquistada"].round(2),
         media_conquistada_basica=lambda df_: df_["media_conquistada_basica"].round(2),
-        scouts=lambda df_: df_[scout_cols].round(2).to_dict(orient="records"),
+        scouts=lambda df_: scout_avgs.round(2).to_dict(orient="records"),
         scout_contributions=scout_contributions_list,
         total_points=total_points.values,
     )
+
+    if scout is not None and scout in Scout.as_list():
+        result = result.sort_values(
+            by=scout, ascending=scout_ascending, na_position="last"
+        )
+
+    return result

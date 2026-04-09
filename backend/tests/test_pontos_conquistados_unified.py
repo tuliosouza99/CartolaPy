@@ -294,3 +294,54 @@ class TestComputePontosConquistadosUnifiedDirectMando:
                 & (~pontuacoes_direct_mando["is_mandante"])
             ]
             assert len(pont_rows) > 0
+
+
+class TestSortByScout:
+    @pytest.fixture
+    def sample_pontuacoes_df_with_scouts(self):
+        return pd.DataFrame(
+            {
+                "atleta_id": [1, 2, 3, 4],
+                "clube_id": [256, 256, 282, 282],
+                "posicao_id": [1, 1, 1, 1],
+                "is_mandante": [True, False, True, False],
+                "rodada_id": [1, 1, 1, 1],
+                "pontuacao": [5.0, 3.0, 4.0, 6.0],
+                "pontuacao_basica": [4.0, 2.5, 3.5, 5.0],
+                "status_id": [7, 7, 7, 7],
+                **{scout: [0, 0, 0, 0] for scout in Scout.as_list()},
+            }
+        )
+
+    def test_sort_by_scout_orders_by_scout_count(
+        self, sample_pontuacoes_df_with_scouts
+    ):
+        df = sample_pontuacoes_df_with_scouts
+        df.loc[df["atleta_id"] == 1, "DS"] = 5
+        df.loc[df["atleta_id"] == 2, "DS"] = 2
+        df.loc[df["atleta_id"] == 3, "DS"] = 0
+        df.loc[df["atleta_id"] == 4, "DS"] = 1
+
+        result = compute_pontos_conquistados_unified(
+            df,
+            rodada_min=1,
+            rodada_max=1,
+            is_mandante="geral",
+            posicao_id=1,
+            scout="DS",
+        )
+        assert result.iloc[0]["clube_id"] == 256
+        assert result.iloc[1]["clube_id"] == 282
+
+    def test_sort_by_scout_none_returns_unsorted(
+        self, sample_pontuacoes_df_with_scouts
+    ):
+        result = compute_pontos_conquistados_unified(
+            sample_pontuacoes_df_with_scouts,
+            rodada_min=1,
+            rodada_max=1,
+            is_mandante="geral",
+            posicao_id=1,
+            scout=None,
+        )
+        assert len(result) == 2

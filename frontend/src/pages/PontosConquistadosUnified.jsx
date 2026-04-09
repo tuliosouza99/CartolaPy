@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import TableView from "../components/TableView";
 import RoundIntervalSlider from "../components/RoundIntervalSlider";
 import MandoToggle from "../components/MandoToggle";
+import ScoutSelect, { SCOUT_BY_CODE } from "../components/ScoutSelect";
 import PontosCedidosScoutChart from "../components/PontosCedidosScoutChart";
 
 const SCOUTS_BY_POSITION = {
@@ -22,6 +23,7 @@ function PontosConquistadosUnified() {
   const [selectedStatusIds, setSelectedStatusIds] = useState([]);
   const [sortBy, setSortBy] = useState("media_conquistada");
   const [sortDirection, setSortDirection] = useState("desc");
+  const [scout, setScout] = useState(null);
   const [expandedMatches, setExpandedMatches] = useState({});
   const [expandedRows, setExpandedRows] = useState(new Set());
   const loadingMatchesRef = useRef(new Set());
@@ -45,6 +47,7 @@ function PontosConquistadosUnified() {
     if (params.get("sort_by")) urlState.sort_by = params.get("sort_by");
     if (params.get("sort_direction")) urlState.sort_direction = params.get("sort_direction");
     if (params.get("status_ids")) urlState.status_ids = params.get("status_ids").split(",").map(Number).filter(Boolean);
+    if (params.get("scout")) urlState.scout = params.get("scout");
 
     if (Object.keys(urlState).length === 0) {
       const saved = sessionStorage.getItem(ROUTE);
@@ -57,6 +60,7 @@ function PontosConquistadosUnified() {
         if (params.get("sort_by")) urlState.sort_by = params.get("sort_by");
         if (params.get("sort_direction")) urlState.sort_direction = params.get("sort_direction");
         if (params.get("status_ids")) urlState.status_ids = params.get("status_ids").split(",").map(Number).filter(Boolean);
+        if (params.get("scout")) urlState.scout = params.get("scout");
       }
     }
 
@@ -81,6 +85,9 @@ function PontosConquistadosUnified() {
     if (urlState.status_ids) {
       setSelectedStatusIds(urlState.status_ids);
     }
+    if (urlState.scout) {
+      setScout(urlState.scout);
+    }
     urlRestored.current = true;
   }, []);
 
@@ -95,13 +102,20 @@ function PontosConquistadosUnified() {
     if (sortBy !== "media_conquistada") params.set("sort_by", sortBy);
     if (sortDirection !== "desc") params.set("sort_direction", sortDirection);
     if (selectedStatusIds.length > 0) params.set("status_ids", selectedStatusIds.join(","));
+    if (scout) params.set("scout", scout);
 
     const queryString = params.toString();
     sessionStorage.setItem(ROUTE, queryString);
 
     const newUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
     window.history.replaceState({}, "", newUrl);
-  }, [rodadaRange, isMandante, selectedPosition, statusData, sortBy, sortDirection, selectedStatusIds]);
+  }, [rodadaRange, isMandante, selectedPosition, statusData, sortBy, sortDirection, selectedStatusIds, scout]);
+
+  useEffect(() => {
+    setScout(null);
+    setSortBy("media_conquistada");
+    setSortDirection("desc");
+  }, [selectedPosition]);
 
   const redefinirFiltros = useCallback(() => {
     setRodadaRange({ min: 1, max: statusData?.rodada_atual || 1 });
@@ -110,6 +124,7 @@ function PontosConquistadosUnified() {
     setSelectedStatusIds([]);
     setSortBy("media_conquistada");
     setSortDirection("desc");
+    setScout(null);
     sessionStorage.removeItem(ROUTE);
     window.history.replaceState({}, "", window.location.pathname);
   }, [statusData]);
@@ -165,51 +180,73 @@ function PontosConquistadosUnified() {
   );
 
   const columns = useMemo(
-    () => [
-      {
-        key: "clube_escudo",
-        label: "Clube",
-        sortable: false,
-        renderCell: (row) => (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <img
-              src={getClubeEscudo(row.clube_id)}
-              alt="clube"
-              style={{
-                width: "24px",
-                height: "24px",
-                objectFit: "contain",
-              }}
-              onError={(e) => {
-                e.target.style.display = "none";
-              }}
-            />
-            <span>{getClubeName(row.clube_id)}</span>
-          </div>
-        ),
-      },
-      {
-        key: "media_conquistada",
-        label: "Média Conquistada",
-        sortable: true,
-        renderCell: (row) => {
-          const val = row.media_conquistada;
-          if (val == null) return "-";
-          return Number(val).toFixed(2);
+    () => {
+      const baseColumns = [
+        {
+          key: "clube_escudo",
+          label: "Clube",
+          sortable: false,
+          renderCell: (row) => (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <img
+                src={getClubeEscudo(row.clube_id)}
+                alt="clube"
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  objectFit: "contain",
+                }}
+                onError={(e) => {
+                  e.target.style.display = "none";
+                }}
+              />
+              <span>{getClubeName(row.clube_id)}</span>
+            </div>
+          ),
         },
-      },
-      {
-        key: "media_conquistada_basica",
-        label: "Média Conquistada Básica",
-        sortable: true,
-        renderCell: (row) => {
-          const val = row.media_conquistada_basica;
-          return val != null ? Number(val).toFixed(2) : "-";
+        {
+          key: "media_conquistada",
+          label: "Média Conquistada",
+          sortable: true,
+          renderCell: (row) => {
+            const val = row.media_conquistada;
+            if (val == null) return "-";
+            return Number(val).toFixed(2);
+          },
         },
-      },
-      { key: "total_jogos", label: "Jogos", sortable: true },
-    ],
-    [getClubeEscudo, getClubeName]
+        {
+          key: "media_conquistada_basica",
+          label: "Média Conquistada Básica",
+          sortable: true,
+          renderCell: (row) => {
+            const val = row.media_conquistada_basica;
+            return val != null ? Number(val).toFixed(2) : "-";
+          },
+        },
+        { key: "total_jogos", label: "Jogos", sortable: true },
+      ];
+
+      if (scout && SCOUT_BY_CODE[scout]) {
+        const scoutInfo = SCOUT_BY_CODE[scout];
+        baseColumns.push({
+          key: `scout_${scout}`,
+          label: scoutInfo.code,
+          sortable: true,
+          renderCell: (row) => {
+            const scouts = row.scouts || {};
+            const value = scouts[scout] || 0;
+            return (
+              <span style={{ fontFamily: "var(--font-mono)", color: "var(--orange)" }}>
+                {value}
+              </span>
+            );
+          },
+        });
+      }
+
+      return baseColumns;
+    },
+    [scout, getClubeEscudo, getClubeName]
   );
 
   const fetchMatchData = useCallback(
@@ -400,7 +437,7 @@ function PontosConquistadosUnified() {
 
   const topBarComponent = useMemo(
     () => (
-      <div>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap", justifyContent: "space-between", width: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <RoundIntervalSlider
             min={1}
@@ -409,6 +446,19 @@ function PontosConquistadosUnified() {
             onChange={setRodadaRange}
           />
           <MandoToggle value={isMandante} onChange={setIsMandante} />
+          <ScoutSelect
+            value={scout}
+            onChange={(newScout) => {
+              setScout(newScout);
+              if (newScout) {
+                setSortBy(newScout);
+              } else {
+                setSortBy("media_conquistada");
+                setSortDirection("desc");
+              }
+            }}
+            scouts={SCOUTS_BY_POSITION[selectedPosition]}
+          />
           <button
             onClick={redefinirFiltros}
             style={{
@@ -425,7 +475,7 @@ function PontosConquistadosUnified() {
           </button>
         </div>
         {filterOptions.status.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <span style={{ fontFamily: "var(--font-display)", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Status:</span>
             <div style={{ display: "flex", gap: "0.25rem" }}>
               {filterOptions.status.map((s) => (
@@ -451,7 +501,7 @@ function PontosConquistadosUnified() {
         )}
       </div>
     ),
-    [rodadaRange, isMandante, statusData?.rodada_atual, redefinirFiltros, filterOptions.status, selectedStatusIds, handleStatusToggle]
+    [rodadaRange, isMandante, statusData?.rodada_atual, redefinirFiltros, filterOptions.status, selectedStatusIds, handleStatusToggle, scout, selectedPosition]
   );
 
   const currentPosition = filterOptions.posicoes.find((p) => p.id === selectedPosition);
@@ -508,9 +558,12 @@ function PontosConquistadosUnified() {
       if (selectedStatusIds.length > 0) {
         params.status_ids = selectedStatusIds.join(",");
       }
+      if (scout) {
+        params.scout = scout;
+      }
       return params;
     },
-    [rodadaRange, isMandante, selectedPosition, selectedStatusIds]
+    [rodadaRange, isMandante, selectedPosition, selectedStatusIds, scout]
   );
 
   const POSICAO_LABELS = {
@@ -522,7 +575,7 @@ function PontosConquistadosUnified() {
     tec: "Técnico",
   };
 
-  const subtitleMando = isMandante === "mandante" ? "mandantes" : isMandante === "visitante" ? "visitantes" : "jogadores";
+  const subtitleMando = isMandante === "mandante" ? "mandante" : isMandante === "visitante" ? "visitante" : "de forma geral";
   const subtitlePosicao = currentPosition?.abreviacao ? POSICAO_LABELS[currentPosition.abreviacao] || currentPosition.abreviacao : "";
 
   return (
@@ -530,7 +583,7 @@ function PontosConquistadosUnified() {
       {positionTabsComponent}
       <TableView
         title="Pontos Conquistados"
-        subtitle={`Pontos conquistados por cada clube de ${subtitleMando} da posição ${subtitlePosicao}`}
+        subtitle={`Pontos Conquistados, em média, por um atleta da posição ${subtitlePosicao} atuando como ${subtitleMando}`}
         endpoint="pontos-conquistados-unified"
         columns={columns}
         filterComponent={topBarComponent}
