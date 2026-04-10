@@ -3,6 +3,7 @@ import TableView from "../components/TableView";
 import FilterSidebar from "../components/FilterSidebar";
 import RoundIntervalSlider from "../components/RoundIntervalSlider";
 import MandoToggle from "../components/MandoToggle";
+import ScoutSelect, { SCOUT_BY_CODE } from "../components/ScoutSelect";
 import AtletaCharts from "../components/AtletaCharts";
 
 const STATUS_COLORS = {
@@ -28,6 +29,7 @@ function AtletasUnified() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [sortBy, setSortBy] = useState("media");
   const [sortDirection, setSortDirection] = useState("desc");
+  const [scout, setScout] = useState(null);
 
   const urlRestored = useRef(false);
 
@@ -52,6 +54,7 @@ function AtletasUnified() {
     if (params.get("preco_max")) urlState.preco_max = parseInt(params.get("preco_max"), 10);
     if (params.get("sort_by")) urlState.sort_by = params.get("sort_by");
     if (params.get("sort_direction")) urlState.sort_direction = params.get("sort_direction");
+    if (params.get("scout")) urlState.scout = params.get("scout");
 
     if (Object.keys(urlState).length === 0) {
       const saved = sessionStorage.getItem(ROUTE);
@@ -68,6 +71,7 @@ function AtletasUnified() {
         if (params.get("preco_max")) urlState.preco_max = parseInt(params.get("preco_max"), 10);
         if (params.get("sort_by")) urlState.sort_by = params.get("sort_by");
         if (params.get("sort_direction")) urlState.sort_direction = params.get("sort_direction");
+        if (params.get("scout")) urlState.scout = params.get("scout");
       }
     }
 
@@ -85,6 +89,7 @@ function AtletasUnified() {
       }));
       if (urlState.sort_by) setSortBy(urlState.sort_by);
       if (urlState.sort_direction) setSortDirection(urlState.sort_direction);
+      if (urlState.scout) setScout(urlState.scout);
     }
     urlRestored.current = true;
   }, []);
@@ -104,13 +109,14 @@ function AtletasUnified() {
     if (filters.preco_max !== 30) params.set("preco_max", filters.preco_max);
     if (sortBy !== "media") params.set("sort_by", sortBy);
     if (sortDirection !== "desc") params.set("sort_direction", sortDirection);
+    if (scout) params.set("scout", scout);
 
     const queryString = params.toString();
     sessionStorage.setItem(ROUTE, queryString);
 
     const newUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
     window.history.replaceState({}, "", newUrl);
-  }, [rodadaRange, isMandante, filters, statusData, sortBy, sortDirection]);
+  }, [rodadaRange, isMandante, filters, statusData, sortBy, sortDirection, scout]);
 
   const redefinirFiltros = useCallback(() => {
     setRodadaRange({ min: 1, max: statusData?.rodada_atual || 1 });
@@ -121,6 +127,7 @@ function AtletasUnified() {
     }));
     setSortBy("media");
     setSortDirection("desc");
+    setScout(null);
     sessionStorage.removeItem(ROUTE);
     window.history.replaceState({}, "", window.location.pathname);
   }, [statusData]);
@@ -164,8 +171,8 @@ function AtletasUnified() {
     setFilters((prev) => ({ ...prev, ...newFilters }));
   }, []);
 
-  const columns = useMemo(
-    () => [
+  const columns = useMemo(() => {
+    const baseColumns = [
       { key: "apelido", label: "Atleta", sortable: true },
       {
         key: "clube_escudo",
@@ -207,70 +214,90 @@ function AtletasUnified() {
       { key: "media", label: "Média", sortable: true },
       { key: "media_basica", label: "Média Básica", sortable: true },
       { key: "total_jogos", label: "Total de Jogos", sortable: true },
-      {
-        key: "proximo_jogo",
-        label: "Próximo Jogo",
-        sortable: false,
+    ];
+
+    if (scout && SCOUT_BY_CODE[scout]) {
+      const scoutInfo = SCOUT_BY_CODE[scout];
+      baseColumns.push({
+        key: `scout_${scout}`,
+        label: scoutInfo.code,
+        sortable: true,
         renderCell: (row) => {
-          const jogo = row.proximo_jogo;
-          if (!jogo || Object.keys(jogo).length === 0) {
-            return <span style={{ color: "var(--text-muted)" }}>-</span>;
-          }
-          const hasMandante = Boolean(jogo.mandante_escudo);
-          const hasVisitante = Boolean(jogo.visitante_escudo);
-          if (!hasMandante && !hasVisitante) {
-            return (
-              <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
-                -
-              </span>
-            );
-          }
+          const scouts = row.scouts || {};
+          const value = scouts[scout] || 0;
           return (
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
-            >
-              {hasMandante ? (
-                <img
-                  src={jogo.mandante_escudo}
-                  alt="mandante"
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    objectFit: "contain",
-                  }}
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                  }}
-                />
-              ) : (
-                <span style={{ width: "20px", height: "20px" }} />
-              )}
-              <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
-                x
-              </span>
-              {hasVisitante ? (
-                <img
-                  src={jogo.visitante_escudo}
-                  alt="visitante"
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    objectFit: "contain",
-                  }}
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                  }}
-                />
-              ) : (
-                <span style={{ width: "20px", height: "20px" }} />
-              )}
-            </div>
+            <span style={{ fontFamily: "var(--font-mono)", color: "var(--orange)" }}>
+              {value}
+            </span>
           );
         },
+      });
+    }
+
+    baseColumns.push({
+      key: "proximo_jogo",
+      label: "Próximo Jogo",
+      sortable: false,
+      renderCell: (row) => {
+        const jogo = row.proximo_jogo;
+        if (!jogo || Object.keys(jogo).length === 0) {
+          return <span style={{ color: "var(--text-muted)" }}>-</span>;
+        }
+        const hasMandante = Boolean(jogo.mandante_escudo);
+        const hasVisitante = Boolean(jogo.visitante_escudo);
+        if (!hasMandante && !hasVisitante) {
+          return (
+            <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
+              -
+            </span>
+          );
+        }
+        return (
+          <div
+            style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
+          >
+            {hasMandante ? (
+              <img
+                src={jogo.mandante_escudo}
+                alt="mandante"
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  objectFit: "contain",
+                }}
+                onError={(e) => {
+                  e.target.style.display = "none";
+                }}
+              />
+            ) : (
+              <span style={{ width: "20px", height: "20px" }} />
+            )}
+            <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
+              x
+            </span>
+            {hasVisitante ? (
+              <img
+                src={jogo.visitante_escudo}
+                alt="visitante"
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  objectFit: "contain",
+                }}
+                onError={(e) => {
+                  e.target.style.display = "none";
+                }}
+              />
+            ) : (
+              <span style={{ width: "20px", height: "20px" }} />
+            )}
+          </div>
+        );
       },
-    ],
-    [],
-  );
+    });
+
+    return baseColumns;
+  }, [scout]);
 
   const expandedContent = useCallback((row) => {
     const scouts = row.scouts || {};
@@ -347,6 +374,18 @@ function AtletasUnified() {
           onChange={setRodadaRange}
         />
         <MandoToggle value={isMandante} onChange={setIsMandante} />
+        <ScoutSelect
+          value={scout}
+          onChange={(newScout) => {
+            setScout(newScout);
+            if (newScout) {
+              setSortBy(newScout);
+            } else {
+              setSortBy("media");
+              setSortDirection("desc");
+            }
+          }}
+        />
         <button
           onClick={redefinirFiltros}
           style={{
@@ -363,7 +402,7 @@ function AtletasUnified() {
         </button>
       </div>
     ),
-    [rodadaRange, isMandante, statusData?.rodada_atual, redefinirFiltros],
+    [rodadaRange, isMandante, statusData?.rodada_atual, scout, redefinirFiltros],
   );
 
   const extraParams = useMemo(() => {
@@ -382,9 +421,10 @@ function AtletasUnified() {
       params.status_ids = filters.status_ids.join(",");
     if (filters.preco_min !== 0) params.preco_min = filters.preco_min;
     if (filters.preco_max !== 30) params.preco_max = filters.preco_max;
+    if (scout) params.scout = scout;
 
     return params;
-  }, [rodadaRange, isMandante, filters]);
+  }, [rodadaRange, isMandante, filters, scout]);
 
   return (
     <div style={{ display: "flex", gap: "1.5rem" }}>

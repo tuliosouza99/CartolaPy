@@ -31,6 +31,8 @@ def compute_atletas_unified(
     status_ids: list[int] | None = None,
     preco_min: int | None = None,
     preco_max: int | None = None,
+    scout: str | None = None,
+    scout_ascending: bool = False,
 ) -> pd.DataFrame:
 
     if clubes_cache is None:
@@ -182,6 +184,11 @@ def compute_atletas_unified(
 
     if preco_max is not None:
         result = result.loc[result["preco_num"] <= preco_max]
+
+    if scout is not None and scout in Scout.as_list():
+        result = result.sort_values(
+            by=scout, ascending=scout_ascending, na_position="last"
+        )
 
     return result
 

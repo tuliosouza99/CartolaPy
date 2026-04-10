@@ -34,3 +34,7 @@ class Scout(Enum):
     @classmethod
     def as_list(cls):
         return [scout.name for scout in cls]
+
+    @classmethod
+    def get_value(cls, scout_name: str) -> float:
+        return cls[scout_name].value["value"]

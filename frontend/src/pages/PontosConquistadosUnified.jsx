@@ -14,13 +14,14 @@ const SCOUTS_BY_POSITION = {
   6: ["V"],
 };
 
-function PontosCedidosUnified() {
+function PontosConquistadosUnified() {
   const [statusData, setStatusData] = useState(null);
   const [rodadaRange, setRodadaRange] = useState({ min: 1, max: 1 });
   const [isMandante, setIsMandante] = useState("geral");
   const [selectedPosition, setSelectedPosition] = useState(1);
-  const [filterOptions, setFilterOptions] = useState({ clubes: {}, posicoes: [] });
-  const [sortBy, setSortBy] = useState("media_cedida");
+  const [filterOptions, setFilterOptions] = useState({ clubes: {}, posicoes: [], status: [] });
+  const [selectedStatusIds, setSelectedStatusIds] = useState([]);
+  const [sortBy, setSortBy] = useState("media_conquistada");
   const [sortDirection, setSortDirection] = useState("desc");
   const [scout, setScout] = useState(null);
   const [expandedMatches, setExpandedMatches] = useState({});
@@ -29,7 +30,7 @@ function PontosCedidosUnified() {
 
   const urlRestored = useRef(false);
 
-  const ROUTE = "/pontos-cedidos";
+  const ROUTE = "/pontos-conquistados";
 
   useEffect(() => {
     fetchStatus();
@@ -45,6 +46,7 @@ function PontosCedidosUnified() {
     if (params.get("posicao_id")) urlState.posicao_id = parseInt(params.get("posicao_id"), 10);
     if (params.get("sort_by")) urlState.sort_by = params.get("sort_by");
     if (params.get("sort_direction")) urlState.sort_direction = params.get("sort_direction");
+    if (params.get("status_ids")) urlState.status_ids = params.get("status_ids").split(",").map(Number).filter(Boolean);
     if (params.get("scout")) urlState.scout = params.get("scout");
 
     if (Object.keys(urlState).length === 0) {
@@ -57,6 +59,7 @@ function PontosCedidosUnified() {
         if (params.get("posicao_id")) urlState.posicao_id = parseInt(params.get("posicao_id"), 10);
         if (params.get("sort_by")) urlState.sort_by = params.get("sort_by");
         if (params.get("sort_direction")) urlState.sort_direction = params.get("sort_direction");
+        if (params.get("status_ids")) urlState.status_ids = params.get("status_ids").split(",").map(Number).filter(Boolean);
         if (params.get("scout")) urlState.scout = params.get("scout");
       }
     }
@@ -79,6 +82,9 @@ function PontosCedidosUnified() {
     if (urlState.sort_direction) {
       setSortDirection(urlState.sort_direction);
     }
+    if (urlState.status_ids) {
+      setSelectedStatusIds(urlState.status_ids);
+    }
     if (urlState.scout) {
       setScout(urlState.scout);
     }
@@ -93,8 +99,9 @@ function PontosCedidosUnified() {
     if (rodadaRange.max !== (statusData?.rodada_atual ?? 1)) params.set("rodada_max", rodadaRange.max);
     if (isMandante !== "geral") params.set("is_mandante", isMandante);
     if (selectedPosition !== 1) params.set("posicao_id", selectedPosition);
-    if (sortBy !== "media_cedida") params.set("sort_by", sortBy);
+    if (sortBy !== "media_conquistada") params.set("sort_by", sortBy);
     params.set("sort_direction", sortDirection);
+    if (selectedStatusIds.length > 0) params.set("status_ids", selectedStatusIds.join(","));
     if (scout) params.set("scout", scout);
 
     const queryString = params.toString();
@@ -102,12 +109,11 @@ function PontosCedidosUnified() {
 
     const newUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
     window.history.replaceState({}, "", newUrl);
-  }, [rodadaRange, isMandante, selectedPosition, statusData, sortBy, sortDirection, scout]);
+  }, [rodadaRange, isMandante, selectedPosition, statusData, sortBy, sortDirection, selectedStatusIds, scout]);
 
   useEffect(() => {
-    if (!urlRestored.current) return;
     setScout(null);
-    setSortBy("media_cedida");
+    setSortBy("media_conquistada");
     setSortDirection("desc");
   }, [selectedPosition]);
 
@@ -115,7 +121,8 @@ function PontosCedidosUnified() {
     setRodadaRange({ min: 1, max: statusData?.rodada_atual || 1 });
     setIsMandante("geral");
     setSelectedPosition(1);
-    setSortBy("media_cedida");
+    setSelectedStatusIds([]);
+    setSortBy("media_conquistada");
     setSortDirection("desc");
     setScout(null);
     sessionStorage.removeItem(ROUTE);
@@ -147,6 +154,7 @@ function PontosCedidosUnified() {
         setFilterOptions({
           clubes: clubesMap,
           posicoes: data.posicoes || [],
+          status: data.status || [],
         });
       }
     } catch (err) {
@@ -197,25 +205,25 @@ function PontosCedidosUnified() {
           ),
         },
         {
-          key: "media_cedida",
-          label: "Média Cedida",
+          key: "media_conquistada",
+          label: "Média Conquistada",
           sortable: true,
           renderCell: (row) => {
-            const val = row.media_cedida;
+            const val = row.media_conquistada;
             if (val == null) return "-";
             return Number(val).toFixed(2);
           },
         },
         {
-          key: "media_cedida_basica",
-          label: "Média Cedida Básica",
+          key: "media_conquistada_basica",
+          label: "Média Conquistada Básica",
           sortable: true,
           renderCell: (row) => {
-            const val = row.media_cedida_basica;
+            const val = row.media_conquistada_basica;
             return val != null ? Number(val).toFixed(2) : "-";
           },
         },
-        { key: "total_jogos", label: "Total de Jogos", sortable: true },
+        { key: "total_jogos", label: "Jogos", sortable: true },
       ];
 
       if (scout && SCOUT_BY_CODE[scout]) {
@@ -253,8 +261,11 @@ function PontosCedidosUnified() {
           rodada_max: rodadaRange.max,
           posicao_id: posId,
         });
+        if (selectedStatusIds.length > 0) {
+          params.set("status_ids", selectedStatusIds.join(","));
+        }
         const res = await fetch(
-          `/api/tables/pontos-cedidos-unified/${clubeId}/matches?${params}`
+          `/api/tables/pontos-conquistados-unified/${clubeId}/matches?${params}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -266,7 +277,7 @@ function PontosCedidosUnified() {
         loadingMatchesRef.current.delete(key);
       }
     },
-    [rodadaRange, expandedMatches]
+    [rodadaRange, expandedMatches, selectedStatusIds]
   );
 
   const handleExpandedRowsChange = useCallback(
@@ -279,7 +290,7 @@ function PontosCedidosUnified() {
   useEffect(() => {
     setExpandedMatches({});
     loadingMatchesRef.current.clear();
-  }, [rodadaRange]);
+  }, [rodadaRange, selectedStatusIds]);
 
   const renderExpandedContent = useCallback(
     (row) => {
@@ -294,16 +305,15 @@ function PontosCedidosUnified() {
 
       const matchKey = `${row.clube_id}-${selectedPosition}`;
       const allMatchData = expandedMatches[matchKey] || null;
-      
+
       if (!allMatchData) {
         fetchMatchData(row.clube_id, selectedPosition);
       }
-      
+
       const matchData = allMatchData
         ? allMatchData.filter((m) => {
-            if (m.opponent_clube_id === row.clube_id) return false;
-            if (isMandante === "mandante" && m.is_mandante !== false) return false;
-            if (isMandante === "visitante" && m.is_mandante !== true) return false;
+            if (isMandante === "mandante" && m.is_mandante !== true) return false;
+            if (isMandante === "visitante" && m.is_mandante !== false) return false;
             return true;
           })
         : null;
@@ -321,7 +331,7 @@ function PontosCedidosUnified() {
           {row.scout_contributions && Object.keys(row.scout_contributions).length > 0 && (
             <PontosCedidosScoutChart
               scoutContributions={row.scout_contributions}
-              mediaCedida={row.media_cedida}
+              mediaCedida={row.media_conquistada}
               positionScouts={positionScouts}
               totalJogos={row.total_jogos}
             />
@@ -338,7 +348,7 @@ function PontosCedidosUnified() {
               letterSpacing: "0.05em",
             }}
           >
-            Média Cedida por Confronto
+            Média Conquistada por Confronto
           </div>
           {!matchData ? (
             <div style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
@@ -417,6 +427,14 @@ function PontosCedidosUnified() {
     [selectedPosition, expandedMatches, fetchMatchData, isMandante]
   );
 
+  const handleStatusToggle = useCallback((statusId) => {
+    setSelectedStatusIds((prev) =>
+      prev.includes(statusId)
+        ? prev.filter((id) => id !== statusId)
+        : [...prev, statusId]
+    );
+  }, []);
+
   const topBarComponent = useMemo(
     () => (
       <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap", justifyContent: "space-between", width: "100%" }}>
@@ -435,7 +453,7 @@ function PontosCedidosUnified() {
               if (newScout) {
                 setSortBy(newScout);
               } else {
-                setSortBy("media_cedida");
+                setSortBy("media_conquistada");
                 setSortDirection("desc");
               }
             }}
@@ -456,9 +474,34 @@ function PontosCedidosUnified() {
             Redefinir Filtros
           </button>
         </div>
+        {filterOptions.status.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontFamily: "var(--font-display)", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Status:</span>
+            <div style={{ display: "flex", gap: "0.25rem" }}>
+              {filterOptions.status.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => handleStatusToggle(s.id)}
+                  style={{
+                    padding: "0.25rem 0.5rem",
+                    fontSize: "0.7rem",
+                    fontFamily: "var(--font-display)",
+                    background: selectedStatusIds.includes(s.id) ? "var(--orange)" : "var(--bg-card)",
+                    color: selectedStatusIds.includes(s.id) ? "white" : "var(--text-secondary)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {s.nome}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     ),
-    [rodadaRange, isMandante, statusData?.rodada_atual, redefinirFiltros, scout, selectedPosition]
+    [rodadaRange, isMandante, statusData?.rodada_atual, redefinirFiltros, filterOptions.status, selectedStatusIds, handleStatusToggle, scout, selectedPosition]
   );
 
   const currentPosition = filterOptions.posicoes.find((p) => p.id === selectedPosition);
@@ -505,14 +548,22 @@ function PontosCedidosUnified() {
   );
 
   const extraParams = useMemo(
-    () => ({
-      rodada_min: rodadaRange.min,
-      rodada_max: rodadaRange.max,
-      is_mandante: isMandante,
-      posicao_id: selectedPosition,
-      ...(scout && { scout }),
-    }),
-    [rodadaRange, isMandante, selectedPosition, scout]
+    () => {
+      const params = {
+        rodada_min: rodadaRange.min,
+        rodada_max: rodadaRange.max,
+        is_mandante: isMandante,
+        posicao_id: selectedPosition,
+      };
+      if (selectedStatusIds.length > 0) {
+        params.status_ids = selectedStatusIds.join(",");
+      }
+      if (scout) {
+        params.scout = scout;
+      }
+      return params;
+    },
+    [rodadaRange, isMandante, selectedPosition, selectedStatusIds, scout]
   );
 
   const POSICAO_LABELS = {
@@ -531,9 +582,9 @@ function PontosCedidosUnified() {
     <div>
       {positionTabsComponent}
       <TableView
-        title="Pontos Cedidos"
-        subtitle={`Pontos Cedidos, em média, para um atleta da posição ${subtitlePosicao} atuando como ${subtitleMando}`}
-        endpoint="pontos-cedidos-unified"
+        title="Pontos Conquistados"
+        subtitle={`Pontos Conquistados, em média, por um atleta da posição ${subtitlePosicao} atuando como ${subtitleMando}`}
+        endpoint="pontos-conquistados-unified"
         columns={columns}
         filterComponent={topBarComponent}
         extraParams={extraParams}
@@ -555,4 +606,4 @@ function PontosCedidosUnified() {
   );
 }
 
-export default PontosCedidosUnified;
+export default PontosConquistadosUnified;
