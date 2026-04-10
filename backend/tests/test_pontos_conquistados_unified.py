@@ -252,6 +252,7 @@ class TestComputePontosConquistadosUnifiedDirectMando:
     def pontuacoes_direct_mando(self):
         return pd.DataFrame(
             {
+                "atleta_id": [1, 2, 3, 4],
                 "clube_id": [256, 256, 282, 282],
                 "posicao_id": [1, 1, 1, 1],
                 "is_mandante": [True, False, True, False],
