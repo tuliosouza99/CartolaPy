@@ -100,7 +100,7 @@ function PontosConquistadosUnified() {
     if (isMandante !== "geral") params.set("is_mandante", isMandante);
     if (selectedPosition !== 1) params.set("posicao_id", selectedPosition);
     if (sortBy !== "media_conquistada") params.set("sort_by", sortBy);
-    if (sortDirection !== "desc") params.set("sort_direction", sortDirection);
+    params.set("sort_direction", sortDirection);
     if (selectedStatusIds.length > 0) params.set("status_ids", selectedStatusIds.join(","));
     if (scout) params.set("scout", scout);
 

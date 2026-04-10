@@ -2,17 +2,21 @@ import { useLocation } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
 
 const navItems = [
-  { path: "/atletas", label: "Atletas" },
-  { path: "/pontos-conquistados", label: "Pontos Conquistados" },
-  { path: "/pontos-cedidos", label: "Pontos Cedidos" },
-  { path: "/confrontos", label: "Confrontos" },
+  { path: "/atletas", label: "Atletas", newTab: true },
+  { path: "/pontos-conquistados", label: "Pontos Conquistados", newTab: true },
+  { path: "/pontos-cedidos", label: "Pontos Cedidos", newTab: true },
+  { path: "/confrontos", label: "Confrontos", newTab: true },
 ];
 
 function Navbar() {
   const location = useLocation();
 
-  const handleNav = (path) => {
-    window.location.href = path;
+  const handleNav = (e, path) => {
+    if (e.ctrlKey || e.metaKey || e.button === 1) {
+      window.open(path, "_blank", "noopener,noreferrer");
+    } else {
+      window.location.href = path;
+    }
   };
 
   return (
@@ -75,7 +79,7 @@ function Navbar() {
           {navItems.map((item) => (
             <button
               key={item.path}
-              onClick={() => handleNav(item.path)}
+              onClick={(e) => handleNav(e, item.path)}
               style={{
                 fontFamily: "var(--font-display)",
                 fontWeight: 500,

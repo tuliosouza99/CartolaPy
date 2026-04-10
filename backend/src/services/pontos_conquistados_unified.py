@@ -128,9 +128,20 @@ def compute_pontos_conquistados_unified(
         total_points=total_points.values,
     )
 
-    if scout is not None and scout in Scout.as_list():
+    scout_avg_series = (
+        scout_avgs[scout].reset_index(drop=True)
+        if scout in scout_avgs.columns
+        else None
+    )
+
+    if scout is not None and scout in Scout.as_list() and scout_avg_series is not None:
+        result = result.reset_index(drop=True)
+        result["__sort_key"] = scout_avg_series.values
         result = result.sort_values(
-            by=scout, ascending=scout_ascending, na_position="last"
+            by="__sort_key",
+            ascending=scout_ascending,
+            na_position="last",
         )
+        result = result.drop(columns=["__sort_key"])
 
     return result
