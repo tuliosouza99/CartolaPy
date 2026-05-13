@@ -8,10 +8,10 @@ dependencies = [
     "aiohttp>=3.13.5",
     "aiolimiter>=1.2.1",
     "fastapi[standard]>=0.136.1",
-    "pandas>=3.0.2",
+    "pandas>=3.0.3",
     "pyarrow>=24.0.0",
     "redis>=5.0.0",
-    "pydantic-settings>=2.14.0",
+    "pydantic-settings>=2.14.1",
     "slowapi>=0.1.9",
     "taskiq-fastapi>=0.5.0",
     "taskiq-redis>=0.6.0",
@@ -19,7 +19,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "marimo>=0.23.5",
+    "marimo>=0.23.6",
     "ruff>=0.15.12",
     "pytest>=9.0.3",
     "pytest-asyncio>=0.25.0",
