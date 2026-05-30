@@ -135,7 +135,7 @@ function Confrontos() {
 
   const goToNextRodada = useCallback(() => {
     if (!statusData) return;
-    setRodada((prev) => Math.min(statusData.rodada_atual, prev + 1));
+    setRodada((prev) => Math.min(statusData.rodada_atual + 1, prev + 1));
   }, [statusData]);
 
   const toggleMatch = useCallback((idx) => {
@@ -273,7 +273,7 @@ function Confrontos() {
     </div>
   );
 
-  const maxRodada = statusData?.rodada_atual || 1;
+  const maxRodada = (statusData?.rodada_atual || 1) + 1;
 
   return (
     <div>

@@ -39,7 +39,7 @@ async def update_data_task(
     rodada_id_state["previous"] = old_rodada_id
     rodada_id_state["current"] = new_rodada_id
 
-    if old_rodada_id is not None and old_rodada_id != new_rodada_id:
+    if old_rodada_id is None or old_rodada_id != new_rodada_id:
         logger.info("Rodada changed, updating expensive tables")
         confrontos_df = await data_loader.confrontos.fill_confrontos(new_rodada_id)
         pontuacoes_df = await data_loader.pontuacoes.fill_pontuacoes(new_rodada_id)
@@ -53,7 +53,10 @@ async def update_data_task(
         store.save_last_updated("pontuacoes", datetime.now(timezone.utc))
         store.save_dataframe("pontos_cedidos", pontos_cedidos_df)
         store.save_last_updated("pontos_cedidos", datetime.now(timezone.utc))
-        logger.info("All tables saved to Redis after rodada change")
+        deleted = store.delete_by_prefix("partidas:")
+        logger.info(
+            f"All tables saved to Redis after rodada change, invalidated {deleted} partidas cache keys"
+        )
         return {
             "rodada_changed": True,
             "old_rodada_id": old_rodada_id,

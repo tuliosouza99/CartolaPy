@@ -105,3 +105,12 @@ class RedisDataFrameStore:
             return json.loads(data)
         except (json.JSONDecodeError, UnicodeDecodeError):
             return None
+
+    def delete_by_prefix(self, prefix: str) -> int:
+        pattern = f"{self.PREFIX}:{prefix}*"
+        keys = []
+        for key in self.redis.scan_iter(match=pattern):
+            keys.append(key)
+        if keys:
+            return self.redis.delete(*keys)
+        return 0
