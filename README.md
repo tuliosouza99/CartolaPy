@@ -111,6 +111,7 @@ npm run preview  # Preview production build
 - **AtletasUnified**: View player statistics with filters for position, club, status, and price range
 - **PontosCedidosUnified**: View points ceded by each team for specific positions
 - **Confrontos**: Match predictions and analysis
+- **Dicas da Rodada**: AI-generated next-round report with streamed execution, Redis caching, local JSON history, and agent-selected analysis windows (last 5 and 10 are recommended starting points)
 - **Pontuacoes**: Round-by-round scoring data
 - Filter by round range, home/away conditions
 - Sort and paginate results
@@ -123,6 +124,13 @@ Copy `.env.example` to `.env` and configure:
 - `REDIS_PASSWORD` - Redis password
 - `API_KEY` - API authentication key
 - `ADMIN_API_KEY` - Admin authentication key
+- `OPENAI_API_KEY` - Required for generating "Dicas da Rodada"
+- `TAVILY_API_KEY` - Optional, enables odds/news search in "Dicas da Rodada"
+- `DICAS_MODEL` - Optional Deep Agents model string, defaults to `openai:gpt-5.5`
+- `DICAS_REASONING_EFFORT` - Optional OpenAI reasoning effort for Dicas generation, defaults to `medium`
+- `CARTOLAPY_API_BASE_URL` - Backend URL used by the report worker, defaults locally to `http://localhost:8000`
+- `DICAS_REPORTS_DIR` - Optional directory for saved "Dicas da Rodada" JSON reports, defaults to `data/dicas_reports`
+- `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` - Optional tracing for the report agent
 - `ENVIRONMENT=production` for Docker deployment
 - `ENVIRONMENT=pytest` for test mode
 
@@ -178,6 +186,13 @@ graph TB
 - `GET /api/tables/pontos-cedidos-unified/{clube_id}/matches` - Club's matches with ceded points
 - `GET /api/tables/confrontos` - Match data
 - `GET /api/tables/pontuacoes` - Round scoring data
+- `GET /api/dicas-da-rodada` - Cached AI report status for the next round
+- `POST /api/dicas-da-rodada/generate` - Start report generation when no cached report exists
+- `POST /api/dicas-da-rodada/regenerate` - Regenerate a completed report
+- `GET /api/dicas-da-rodada/eval` - Check saved recommendation logic against completed rounds by position
+- `GET /api/dicas-da-rodada/history` - List locally saved AI reports
+- `GET /api/dicas-da-rodada/history/{report_id}` - Load a locally saved AI report
+- `GET /api/dicas-da-rodada/runs/{run_id}/stream` - Server-sent generation progress stream
 - `GET /api/tables/status` - Current round & last updated timestamps
 - `GET /api/tables/filter-options` - Available clubs, positions, status for filtering
 

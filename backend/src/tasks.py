@@ -6,6 +6,7 @@ from typing import Annotated
 from taskiq import TaskiqDepends
 
 from .dependencies import get_data_loader, get_rodada_id_state
+from .services.dicas_da_rodada import run_dicas_report_generation
 from .services import DataLoader
 from .tkq import broker
 
@@ -74,3 +75,21 @@ async def update_data_task(
         "rodada_changed": False,
         "rodada_id": new_rodada_id,
     }
+
+
+@broker.task
+async def generate_dicas_da_rodada_task(
+    run_id: str,
+    rodada: int,
+) -> dict:
+    logger.info(
+        "generate_dicas_da_rodada_task started run_id=%s rodada=%s",
+        run_id,
+        rodada,
+    )
+    store = broker.state.redis_store
+    return await run_dicas_report_generation(
+        store=store,
+        run_id=run_id,
+        rodada=rodada,
+    )

@@ -6,6 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from .api.auth import settings
+from .api.dicas_routes import router as dicas_router
 from .api.routes import router as api_router, limiter
 from .lifespan import _lifespan
 
@@ -31,6 +32,7 @@ def get_app():
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     app.include_router(api_router, prefix="/api")
+    app.include_router(dicas_router, prefix="/api")
 
     @app.get("/health")
     async def health_check():

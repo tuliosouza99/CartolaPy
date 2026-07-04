@@ -164,6 +164,7 @@ cython_debug/
 
 # Data
 .DS_Store
+data/dicas_reports/
 
 # Marimo
 __marimo__/

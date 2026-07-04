@@ -13,6 +13,16 @@ def normalize_string(s: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
 
 
+def normalize_numeric_columns(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    result = df.copy()
+    for column in columns:
+        if column in result.columns:
+            result[column] = pd.to_numeric(result[column], errors="coerce").astype(
+                "Int64"
+            )
+    return result
+
+
 def compute_atletas_unified(
     atletas_df: pd.DataFrame,
     pontuacoes_df: pd.DataFrame,
@@ -34,6 +44,14 @@ def compute_atletas_unified(
     scout: str | None = None,
     scout_ascending: bool = False,
 ) -> pd.DataFrame:
+
+    atletas_df = normalize_numeric_columns(
+        atletas_df, ["atleta_id", "clube_id", "posicao_id", "status_id", "rodada_id"]
+    )
+    pontuacoes_df = normalize_numeric_columns(
+        pontuacoes_df, ["atleta_id", "clube_id", "posicao_id", "rodada_id"]
+    )
+    confrontos_df = normalize_numeric_columns(confrontos_df, ["clube_id", "rodada_id"])
 
     if clubes_cache is None:
         clubes_cache = {}

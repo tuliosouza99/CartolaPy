@@ -32,6 +32,17 @@ services:
       - ADMIN_API_KEY=${ADMIN_API_KEY}
       - ENVIRONMENT=production
       - CORS_ORIGINS=http://frontend:80,http://localhost:8501
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - DICAS_MODEL=${DICAS_MODEL:-openai:gpt-5.5}
+      - DICAS_REASONING_EFFORT=${DICAS_REASONING_EFFORT:-medium}
+      - CARTOLAPY_API_BASE_URL=http://backend:8000
+      - DICAS_REPORTS_DIR=/app/data/dicas_reports
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-cartolapy-dicas}
+    volumes:
+      - ./data/dicas_reports:/app/data/dicas_reports
     depends_on:
       redis:
         condition: service_healthy
@@ -57,6 +68,17 @@ services:
     environment:
       - REDIS_URL=redis://default:${REDIS_PASSWORD}@redis:6379
       - ENVIRONMENT=production
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - DICAS_MODEL=${DICAS_MODEL:-openai:gpt-5.5}
+      - DICAS_REASONING_EFFORT=${DICAS_REASONING_EFFORT:-medium}
+      - CARTOLAPY_API_BASE_URL=http://backend:8000
+      - DICAS_REPORTS_DIR=/app/data/dicas_reports
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-cartolapy-dicas}
+    volumes:
+      - ./data/dicas_reports:/app/data/dicas_reports
     depends_on:
       redis:
         condition: service_healthy

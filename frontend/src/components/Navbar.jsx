@@ -6,6 +6,7 @@ const navItems = [
   { path: "/pontos-conquistados", label: "Pontos Conquistados", newTab: true },
   { path: "/pontos-cedidos", label: "Pontos Cedidos", newTab: true },
   { path: "/confrontos", label: "Confrontos", newTab: true },
+  { path: "/dicas-da-rodada", label: "Dicas da Rodada", newTab: true },
 ];
 
 function Navbar() {

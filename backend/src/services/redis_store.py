@@ -91,9 +91,13 @@ class RedisDataFrameStore:
         ]
         return any(self.exists(k) for k in keys)
 
-    def save_json(self, key: str, data: Any) -> None:
+    def save_json(self, key: str, data: Any, ttl_seconds: int | None = None) -> None:
         serialized = json.dumps(data, default=str)
-        self.redis.set(self._key(key), serialized.encode())
+        redis_key = self._key(key)
+        if ttl_seconds is None:
+            self.redis.set(redis_key, serialized.encode())
+        else:
+            self.redis.set(redis_key, serialized.encode(), ex=ttl_seconds)
 
     def load_json(self, key: str) -> Any | None:
         data = self.redis.get(self._key(key))
@@ -105,6 +109,32 @@ class RedisDataFrameStore:
             return json.loads(data)
         except (json.JSONDecodeError, UnicodeDecodeError):
             return None
+
+    def append_json(self, key: str, data: Any, ttl_seconds: int | None = None) -> int:
+        serialized = json.dumps(data, default=str)
+        redis_key = self._key(key)
+        length = self.redis.rpush(redis_key, serialized.encode())
+        if ttl_seconds is not None:
+            self.redis.expire(redis_key, ttl_seconds)
+        return int(length)
+
+    def load_json_list(self, key: str) -> list[Any]:
+        items = self.redis.lrange(self._key(key), 0, -1)
+        result = []
+        for item in items:
+            try:
+                if isinstance(item, bytes):
+                    item = item.decode()
+                result.append(json.loads(item))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+        return result
+
+    def delete(self, key: str) -> int:
+        return int(self.redis.delete(self._key(key)))
+
+    def expire(self, key: str, ttl_seconds: int) -> bool:
+        return bool(self.redis.expire(self._key(key), ttl_seconds))
 
     def delete_by_prefix(self, prefix: str) -> int:
         pattern = f"{self.PREFIX}:{prefix}*"

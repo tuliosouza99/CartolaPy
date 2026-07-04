@@ -5,6 +5,7 @@ import AtletasUnified from './pages/AtletasUnified'
 import PontosConquistadosUnified from './pages/PontosConquistadosUnified'
 import PontosCedidosUnified from './pages/PontosCedidosUnified'
 import Confrontos from './pages/Confrontos'
+import DicasDaRodada from './pages/DicasDaRodada'
 
 
 export const ThemeContext = createContext()
@@ -46,6 +47,7 @@ function App() {
             <Route path="/pontos-conquistados" element={<PontosConquistadosUnified key="pontos-conquistados" />} />
             <Route path="/pontos-cedidos" element={<PontosCedidosUnified key="pontos-cedidos" />} />
             <Route path="/confrontos" element={<Confrontos key="confrontos" />} />
+            <Route path="/dicas-da-rodada" element={<DicasDaRodada key="dicas-da-rodada" />} />
 
           </Routes>
         </main>

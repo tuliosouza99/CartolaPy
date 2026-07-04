@@ -42,6 +42,36 @@ class TestComputePontosConquistadosUnified:
         for col in expected_columns:
             assert col in result.columns
 
+    def test_sparse_scout_contributions_keep_row_labels(self):
+        scouts = {scout: [0, 0] for scout in Scout.as_list()}
+        scouts["DS"] = [0, 3]
+        df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2],
+                "clube_id": [10, 20],
+                "posicao_id": [5, 5],
+                "is_mandante": [True, True],
+                "rodada_id": [15, 15],
+                "pontuacao": [0.0, 6.0],
+                "pontuacao_basica": [0.0, 3.0],
+                "status_id": [7, 7],
+                **scouts,
+            }
+        )
+
+        result = compute_pontos_conquistados_unified(
+            df,
+            rodada_min=15,
+            rodada_max=15,
+            is_mandante="geral",
+            posicao_id=5,
+        )
+
+        first_row = result[result["clube_id"] == 10].iloc[0]
+        second_row = result[result["clube_id"] == 20].iloc[0]
+        assert first_row["scout_contributions"] is None
+        assert second_row["scout_contributions"]["DS"]["raw_sum"] == 3.0
+
     def test_filters_by_posicao_id(self, sample_pontuacoes_df):
         result = compute_pontos_conquistados_unified(
             sample_pontuacoes_df,

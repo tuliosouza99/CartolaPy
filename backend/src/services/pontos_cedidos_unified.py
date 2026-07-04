@@ -109,7 +109,7 @@ def compute_pontos_cedidos_unified(
     )
 
     scout_contributions_list = [
-        contributions_by_row.iloc[i] if i in contributions_by_row.index else None
+        contributions_by_row.loc[i] if i in contributions_by_row.index else None
         for i in range(len(pont_agg))
     ]
 

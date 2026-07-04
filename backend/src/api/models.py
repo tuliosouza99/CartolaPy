@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -146,3 +146,50 @@ class AtletaHistoricoItem(BaseModel):
 class AtletaHistoricoResponse(BaseModel):
     atleta_id: int
     historico: list[AtletaHistoricoItem]
+
+
+class DicasRunMetadata(BaseModel):
+    run_id: str
+    rodada: int
+    status: Literal["queued", "running", "completed", "failed"]
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+    error: str | None = None
+
+
+class DicasReport(BaseModel):
+    report_id: str | None = None
+    rodada: int
+    report_markdown: str
+    generated_at: datetime
+    model: str
+    reasoning_effort: str | None = None
+    recommended_spans: list[int] = Field(default_factory=lambda: [5, 10])
+    sources: list[dict] = Field(default_factory=list)
+
+
+class DicasStatusResponse(BaseModel):
+    rodada: int
+    report: DicasReport | None = None
+    active_run: DicasRunMetadata | None = None
+
+
+class DicasGenerateResponse(BaseModel):
+    rodada: int
+    started: bool
+    run: DicasRunMetadata | None = None
+    report: DicasReport | None = None
+
+
+class DicasReportSummary(BaseModel):
+    report_id: str
+    rodada: int | None = None
+    title: str
+    generated_at: datetime | None = None
+    model: str | None = None
+
+
+class DicasHistoryResponse(BaseModel):
+    reports: list[DicasReportSummary] = Field(default_factory=list)
+    rodadas: list[int] = Field(default_factory=list)
