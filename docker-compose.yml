@@ -37,12 +37,18 @@ services:
       - DICAS_MODEL=${DICAS_MODEL:-openai:gpt-5.5}
       - DICAS_REASONING_EFFORT=${DICAS_REASONING_EFFORT:-medium}
       - CARTOLAPY_API_BASE_URL=http://backend:8000
-      - DICAS_REPORTS_DIR=/app/data/dicas_reports
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - DICAS_S3_BUCKET=${DICAS_S3_BUCKET}
+      - DICAS_S3_PREFIX=${DICAS_S3_PREFIX:-cartolapy/dicas-da-rodada}
+      - DICAS_SEASON_YEAR=${DICAS_SEASON_YEAR:-2026}
+      - DICAS_MEMORY_LOOKBACK_ROUNDS=${DICAS_MEMORY_LOOKBACK_ROUNDS:-38}
+      - DICAS_MEMORY_CONTEXT_ROUNDS=${DICAS_MEMORY_CONTEXT_ROUNDS:-5}
       - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
       - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
       - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-cartolapy-dicas}
-    volumes:
-      - ./data/dicas_reports:/app/data/dicas_reports
     depends_on:
       redis:
         condition: service_healthy
@@ -73,12 +79,18 @@ services:
       - DICAS_MODEL=${DICAS_MODEL:-openai:gpt-5.5}
       - DICAS_REASONING_EFFORT=${DICAS_REASONING_EFFORT:-medium}
       - CARTOLAPY_API_BASE_URL=http://backend:8000
-      - DICAS_REPORTS_DIR=/app/data/dicas_reports
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - DICAS_S3_BUCKET=${DICAS_S3_BUCKET}
+      - DICAS_S3_PREFIX=${DICAS_S3_PREFIX:-cartolapy/dicas-da-rodada}
+      - DICAS_SEASON_YEAR=${DICAS_SEASON_YEAR:-2026}
+      - DICAS_MEMORY_LOOKBACK_ROUNDS=${DICAS_MEMORY_LOOKBACK_ROUNDS:-38}
+      - DICAS_MEMORY_CONTEXT_ROUNDS=${DICAS_MEMORY_CONTEXT_ROUNDS:-5}
       - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
       - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
       - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-cartolapy-dicas}
-    volumes:
-      - ./data/dicas_reports:/app/data/dicas_reports
     depends_on:
       redis:
         condition: service_healthy

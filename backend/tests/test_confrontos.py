@@ -14,12 +14,16 @@ class TestConfrontos:
                     "partida_id": 1001,
                     "clube_casa_id": 264,
                     "clube_visitante_id": 276,
+                    "placar_oficial_mandante": 2,
+                    "placar_oficial_visitante": 1,
                     "valida": True,
                 },
                 {
                     "partida_id": 1002,
                     "clube_casa_id": 287,
                     "clube_visitante_id": 303,
+                    "placar_oficial_mandante": 0,
+                    "placar_oficial_visitante": 0,
                     "valida": True,
                 },
             ]
@@ -135,6 +139,17 @@ class TestConfrontos:
         assert (result["rodada_id"] == 7).all()
 
     @pytest.mark.anyio
+    async def test_fill_confrontos_rodada_keeps_score_from_each_team_view(
+        self, confrontos, sample_api_response
+    ):
+        result = await confrontos._fill_confrontos_rodada(1)
+
+        mandante = result.loc[result["clube_id"] == 264].iloc[0]
+        visitante = result.loc[result["clube_id"] == 276].iloc[0]
+        assert (mandante["placar_clube"], mandante["placar_adversario"]) == (2, 1)
+        assert (visitante["placar_clube"], visitante["placar_adversario"]) == (1, 2)
+
+    @pytest.mark.anyio
     async def test_fill_confrontos_fetches_multiple_rodadas(
         self, confrontos, sample_api_response
     ):
@@ -176,4 +191,6 @@ class TestConfrontos:
             "is_mandante",
             "rodada_id",
             "partida_id",
+            "placar_clube",
+            "placar_adversario",
         ]

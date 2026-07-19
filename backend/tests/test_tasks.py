@@ -78,3 +78,17 @@ class TestTaskDependencies:
             assert broker.await_inplace is True, (
                 "InMemoryBroker should have await_inplace=True for synchronous test execution"
             )
+
+
+class TestDicasMemoryScheduledTask:
+    def test_task_is_scheduled_daily(self):
+        from src.tasks import refresh_dicas_round_memories_task
+
+        schedules = refresh_dicas_round_memories_task.labels.get("schedule", [])
+
+        assert schedules == [{"cron": "0 9 * * *"}]
+
+    def test_task_is_registered_in_broker(self):
+        from src.tasks import refresh_dicas_round_memories_task
+
+        assert refresh_dicas_round_memories_task.task_name in broker.get_all_tasks()

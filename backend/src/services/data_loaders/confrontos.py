@@ -15,6 +15,8 @@ class Confrontos:
             "is_mandante",
             "rodada_id",
             "partida_id",
+            "placar_clube",
+            "placar_adversario",
         ]
 
     async def fill_confrontos(self, rodada_atual: int) -> pd.DataFrame:
@@ -48,6 +50,8 @@ class Confrontos:
                         columns={
                             "clube_casa_id": "clube_id",
                             "clube_visitante_id": "opponent_clube_id",
+                            "placar_oficial_mandante": "placar_clube",
+                            "placar_oficial_visitante": "placar_adversario",
                         }
                     )
                     .assign(rodada_id=rodada, is_mandante=True)
@@ -58,6 +62,8 @@ class Confrontos:
                         columns={
                             "clube_visitante_id": "clube_id",
                             "clube_casa_id": "opponent_clube_id",
+                            "placar_oficial_visitante": "placar_clube",
+                            "placar_oficial_mandante": "placar_adversario",
                         }
                     )
                     .assign(rodada_id=rodada, is_mandante=False)

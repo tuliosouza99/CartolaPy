@@ -973,6 +973,7 @@ function HistoryReportItem({ item, active, onSelect }) {
         {item.title || "Dicas da Rodada"}
       </span>
       <span style={{ color: "var(--text-secondary)", fontSize: "0.78rem" }}>
+        {item.season_year ? `Temporada ${item.season_year} · ` : ""}
         Rodada {item.rodada || "-"}
       </span>
       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}>

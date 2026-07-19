@@ -8,7 +8,6 @@ import ssl
 import uuid
 from datetime import datetime, timezone
 from html import unescape
-from pathlib import Path
 from typing import Any, Literal
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -22,6 +21,12 @@ from .atletas_unified import (
     normalize_string,
 )
 from .enums import Scout
+from .dicas_memory import (
+    DicasMemoryError,
+    current_season_year,
+    get_dicas_memory_store,
+    load_memories_for_prediction,
+)
 from .pontos_cedidos_unified import compute_pontos_cedidos_unified
 from .pontos_conquistados_unified import compute_pontos_conquistados_unified
 from .redis_store import RedisDataFrameStore
@@ -32,7 +37,6 @@ RECOMMENDED_SPANS = [5, 10]
 MAX_ANALYSIS_SPAN = 10
 ACTIVE_RUN_TTL_SECONDS = 2 * 60 * 60
 RUN_TTL_SECONDS = 24 * 60 * 60
-REPORT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 DEFAULT_DICAS_MODEL = "openai:gpt-5.5"
 DEFAULT_DICAS_REASONING_EFFORT = "medium"
 PICKS_PER_POSITION = 7
@@ -77,12 +81,14 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def report_key(rodada: int) -> str:
-    return f"dicas:report:{rodada}"
+def report_key(rodada: int, season_year: int | None = None) -> str:
+    season_year = season_year or current_season_year()
+    return f"dicas:{season_year}:report:{rodada}"
 
 
-def active_run_key(rodada: int) -> str:
-    return f"dicas:active:{rodada}"
+def active_run_key(rodada: int, season_year: int | None = None) -> str:
+    season_year = season_year or current_season_year()
+    return f"dicas:{season_year}:active:{rodada}"
 
 
 def run_key(run_id: str) -> str:
@@ -116,126 +122,36 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
-def dicas_reports_dir() -> Path:
-    return Path(os.environ.get("DICAS_REPORTS_DIR", "data/dicas_reports")).expanduser()
-
-
-def _safe_report_id(report: dict) -> str:
-    rodada = str(report.get("rodada") or "unknown")
-    generated_at = str(report.get("generated_at") or utc_now().isoformat())
-    timestamp = re.sub(r"[^0-9A-Za-z]+", "-", generated_at).strip("-")
-    return f"rodada-{rodada}-{timestamp}-{uuid.uuid4().hex[:8]}"
-
-
-def _report_title(report: dict) -> str:
-    markdown = str(report.get("report_markdown") or "")
-    for line in markdown.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            return stripped.lstrip("#").strip() or "Dicas da Rodada"
-    rodada = report.get("rodada")
-    return f"Dicas da Rodada {rodada}" if rodada else "Dicas da Rodada"
-
-
-def _report_rodada(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def save_archived_report(report: dict) -> dict:
-    archived_report = _json_safe({**report})
-    report_id = str(
-        archived_report.get("report_id") or _safe_report_id(archived_report)
-    )
-    if not REPORT_ID_PATTERN.match(report_id):
-        report_id = _safe_report_id(archived_report)
-    archived_report["report_id"] = report_id
-
-    directory = dicas_reports_dir()
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{report_id}.json"
-    path.write_text(
-        json.dumps(archived_report, ensure_ascii=False, indent=2, default=str),
-        encoding="utf-8",
-    )
-    return archived_report
+    return get_dicas_memory_store().save_report(report)
 
 
 def load_archived_report(report_id: str) -> dict | None:
-    if not REPORT_ID_PATTERN.match(report_id):
-        raise ValueError("Invalid report id")
-    path = dicas_reports_dir() / f"{report_id}.json"
-    if not path.exists():
-        return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        logger.exception("Failed to load archived Dicas report %s", report_id)
-        return None
-    if not isinstance(payload, dict):
-        return None
-    payload.setdefault("report_id", report_id)
-    return payload
+    return get_dicas_memory_store().load_report(report_id)
 
 
 def delete_archived_report(report_id: str) -> dict | None:
-    if not REPORT_ID_PATTERN.match(report_id):
-        raise ValueError("Invalid report id")
-    path = dicas_reports_dir() / f"{report_id}.json"
-    if not path.exists():
-        return None
-    report = load_archived_report(report_id)
-    path.unlink()
-    return report
+    return get_dicas_memory_store().delete_report(report_id)
 
 
-def _archived_report_summaries() -> list[dict]:
-    directory = dicas_reports_dir()
-    if not directory.exists():
-        return []
-
-    summaries = []
-    for path in directory.glob("*.json"):
-        if not REPORT_ID_PATTERN.match(path.stem):
-            continue
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            logger.exception("Failed to read archived Dicas report %s", path)
-            continue
-        if not isinstance(payload, dict):
-            continue
-        rodada = _report_rodada(payload.get("rodada"))
-        summaries.append(
-            {
-                "report_id": str(payload.get("report_id") or path.stem),
-                "rodada": rodada,
-                "title": _report_title(payload),
-                "generated_at": payload.get("generated_at"),
-                "model": payload.get("model"),
-            }
-        )
-
-    summaries.sort(key=lambda item: str(item.get("generated_at") or ""), reverse=True)
-    return summaries
+def list_archived_report_rounds(
+    season_year: int | None = None,
+) -> list[int]:
+    return get_dicas_memory_store().list_report_rounds(season_year=season_year)
 
 
-def list_archived_report_rounds() -> list[int]:
-    rodadas = {
-        rodada
-        for item in _archived_report_summaries()
-        if (rodada := item.get("rodada")) is not None
-    }
-    return sorted(rodadas, reverse=True)
+def list_archived_report_seasons() -> list[int]:
+    return get_dicas_memory_store().list_seasons()
 
 
-def list_archived_reports(limit: int = 30, rodada: int | None = None) -> list[dict]:
-    summaries = _archived_report_summaries()
-    if rodada is not None:
-        summaries = [item for item in summaries if item.get("rodada") == rodada]
-    return summaries[:limit]
+def list_archived_reports(
+    limit: int = 30,
+    rodada: int | None = None,
+    season_year: int | None = None,
+) -> list[dict]:
+    return get_dicas_memory_store().list_reports(
+        limit=limit, rodada=rodada, season_year=season_year
+    )
 
 
 class DicasReportCache:
@@ -262,6 +178,7 @@ class DicasReportCache:
         now = utc_now().isoformat()
         metadata = {
             "run_id": uuid.uuid4().hex,
+            "season_year": current_season_year(),
             "rodada": rodada,
             "status": "queued",
             "created_at": now,
@@ -283,7 +200,7 @@ class DicasReportCache:
         self.store.save_json(run_key(metadata["run_id"]), metadata, RUN_TTL_SECONDS)
         if active:
             self.store.save_json(
-                active_run_key(metadata["rodada"]),
+                active_run_key(metadata["rodada"], metadata.get("season_year")),
                 metadata,
                 ACTIVE_RUN_TTL_SECONDS,
             )
@@ -304,7 +221,9 @@ class DicasReportCache:
             metadata["completed_at"] = utc_now().isoformat()
         metadata = self.save_run(metadata, active=status in {"queued", "running"})
         if status in {"completed", "failed"}:
-            self.store.delete(active_run_key(metadata["rodada"]))
+            self.store.delete(
+                active_run_key(metadata["rodada"], metadata.get("season_year"))
+            )
         return metadata
 
     def append_event(
@@ -334,15 +253,21 @@ class DicasReportCache:
         archived_report = report
         try:
             archived_report = save_archived_report(report)
-        except OSError as exc:
-            logger.exception("Failed to archive Dicas da Rodada report")
+        except DicasMemoryError as exc:
+            logger.exception("Failed to archive Dicas da Rodada report in S3")
             self.append_event(
                 run_id,
                 "warning",
-                "Relatório gerado, mas não foi possível salvar no histórico local.",
+                "Relatório gerado, mas não foi possível salvar no histórico da AWS.",
                 {"error": str(exc)},
             )
-        self.store.save_json(report_key(archived_report["rodada"]), archived_report)
+        self.store.save_json(
+            report_key(
+                archived_report["rodada"],
+                archived_report.get("season_year"),
+            ),
+            archived_report,
+        )
         self.append_event(
             run_id,
             "final_report",
@@ -1640,6 +1565,10 @@ ferramentas. Não invente odds, status, adversários, scouts ou médias.
 
 Regras:
 - Sempre consulte os dados do CartolaPy antes de recomendar jogadores.
+- Consulte get_previous_round_memories no início. Use os aprendizados de rodadas anteriores
+  para calibrar sinais e riscos, mas nunca deixe a memória histórica substituir os dados
+  atuais nem generalize um caso isolado. Dê preferência a memórias que identifiquem
+  claramente clube, adversário, mando e scouts daquele confronto.
 - Use build_position_recommendation_board como fonte principal: ele já combina últimos
   5 e 10 jogos, desempenho no mando do próximo jogo, adversário, scouts e status.
 - Chame evaluate_historical_strategy para span 5 e span 10. A régua de acerto é ficar
@@ -1658,6 +1587,9 @@ Regras:
   histórica", "melhores da posição", "bom caminho", "risco".
 - Cada jogador precisa ter motivo prático: forma recente, mando/casa-fora, adversário
   cedendo pontos na posição, scouts principais, confiança e risco.
+- Nunca cite um scout histórico sem deixar claro por qual clube o jogador atuou e contra
+  qual adversário ele produziu aquele scout. Trate o confronto específico como contexto,
+  não como garantia de repetição.
 - Prefira tabelas por posição. Não escreva blocos longos explicando metodologia.
 - Cite janelas analisadas, riscos e checagens finais antes de escalar.
 - Não exponha raciocínio interno. Entregue apenas o relatório final em Markdown.
@@ -1685,6 +1617,7 @@ Janelas recomendadas para começar:
 - últimos 10 jogos/rodadas disponíveis: rodadas {last_10_min} a {last_10_max}
 
 Critérios mínimos:
+- Comece consultando get_previous_round_memories para recuperar aprendizados já consolidados.
 - Comece por build_position_recommendation_board.
 - Consulte evaluate_historical_strategy com span 5 e span 10 para entender quais
   posições tiveram melhor retorno na conferência histórica.
@@ -1710,6 +1643,35 @@ def _make_agent_tools(
     sink: DicasEventSink,
     rodada: int,
 ) -> list:
+    def get_previous_round_memories(limit: int = 5) -> dict:
+        """Carrega da AWS memórias resumidas de rodadas anteriores à rodada analisada."""
+        sink.tool_call(
+            "memórias de rodadas anteriores",
+            {"rodada": rodada, "limit": limit},
+        )
+        try:
+            result = load_memories_for_prediction(
+                rodada=rodada,
+                season_year=current_season_year(),
+                limit=min(max(limit, 1), 10),
+            )
+        except DicasMemoryError as exc:
+            result = {
+                "available": False,
+                "target_round": rodada,
+                "rounds": [],
+                "memories": [],
+                "reason": str(exc),
+            }
+        sink.tool_result(
+            "memórias de rodadas anteriores",
+            {
+                "available": result.get("available", False),
+                "rounds": result.get("rounds", []),
+            },
+        )
+        return result
+
     def get_cartolapy_status() -> dict:
         """Retorna status das tabelas e rodada atual do CartolaPy."""
         return api_client.get("/api/tables/status")
@@ -1946,6 +1908,7 @@ def _make_agent_tools(
         return {"available": True, "results": results}
 
     return [
+        get_previous_round_memories,
         get_cartolapy_status,
         get_next_matches,
         get_top_players,
@@ -2026,6 +1989,7 @@ async def generate_dicas_report(
         },
     ]
     return {
+        "season_year": current_season_year(),
         "rodada": rodada,
         "report_markdown": report_text,
         "generated_at": utc_now().isoformat(),

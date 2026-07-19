@@ -6,8 +6,9 @@ from typing import Annotated
 from taskiq import TaskiqDepends
 
 from .dependencies import get_data_loader, get_rodada_id_state
-from .services.dicas_da_rodada import run_dicas_report_generation
 from .services import DataLoader
+from .services.dicas_da_rodada import run_dicas_report_generation
+from .services.dicas_memory import refresh_round_memories
 from .tkq import broker
 
 logger = logging.getLogger(__name__)
@@ -93,3 +94,16 @@ async def generate_dicas_da_rodada_task(
         run_id=run_id,
         rodada=rodada,
     )
+
+
+@broker.task(schedule=[{"cron": "0 9 * * *"}])
+async def refresh_dicas_round_memories_task() -> dict:
+    """Create missing memories for recently completed rounds once per day."""
+    logger.info("refresh_dicas_round_memories_task started")
+    result = await refresh_round_memories(store=broker.state.redis_store)
+    logger.info(
+        "refresh_dicas_round_memories_task completed created=%s skipped=%s",
+        result.get("created", []),
+        result.get("skipped", []),
+    )
+    return result

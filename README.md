@@ -111,7 +111,7 @@ npm run preview  # Preview production build
 - **AtletasUnified**: View player statistics with filters for position, club, status, and price range
 - **PontosCedidosUnified**: View points ceded by each team for specific positions
 - **Confrontos**: Match predictions and analysis
-- **Dicas da Rodada**: AI-generated next-round report with streamed execution, Redis caching, local JSON history, and agent-selected analysis windows (last 5 and 10 are recommended starting points)
+- **Dicas da Rodada**: AI-generated next-round report with streamed execution, Redis caching, S3 JSON history, and durable summaries of completed rounds that inform later predictions
 - **Pontuacoes**: Round-by-round scoring data
 - Filter by round range, home/away conditions
 - Sort and paginate results
@@ -129,7 +129,12 @@ Copy `.env.example` to `.env` and configure:
 - `DICAS_MODEL` - Optional Deep Agents model string, defaults to `openai:gpt-5.5`
 - `DICAS_REASONING_EFFORT` - Optional OpenAI reasoning effort for Dicas generation, defaults to `medium`
 - `CARTOLAPY_API_BASE_URL` - Backend URL used by the report worker, defaults locally to `http://localhost:8000`
-- `DICAS_REPORTS_DIR` - Optional directory for saved "Dicas da Rodada" JSON reports, defaults to `data/dicas_reports`
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` - AWS credentials and region used for durable S3 storage
+- `DICAS_S3_BUCKET` - Required S3 bucket for report history, round source snapshots, and derived memories
+- `DICAS_S3_PREFIX` - Optional object prefix, defaults to `cartolapy/dicas-da-rodada`
+- `DICAS_SEASON_YEAR` - Cartola season used to isolate repeating round numbers, defaults to the current year
+- `DICAS_MEMORY_LOOKBACK_ROUNDS` - Number of completed rounds the daily job backfills, defaults to the full 38-round season
+- `DICAS_MEMORY_CONTEXT_ROUNDS` - Maximum previous-round memories offered to the prediction agent, defaults to `5`
 - `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` - Optional tracing for the report agent
 - `ENVIRONMENT=production` for Docker deployment
 - `ENVIRONMENT=pytest` for test mode
@@ -155,6 +160,8 @@ graph TB
     Taskiq --> Redis
     Taskiq --> CartolaAPI["Cartola API<br/>(External)"]
     Backend --> CartolaAPI
+    Taskiq --> S3[("AWS S3<br/>Reports & Memories")]
+    Backend --> S3
 
     Redis ---|"DataFrames<br/>JSON"| Backend
 ```
@@ -171,9 +178,11 @@ graph TB
 
 ### Data Flow
 
-1. **Taskiq** fetches data from Cartola API and stores in Redis
-2. **Backend** reads from Redis, computes unified views, serves REST API
-3. **Frontend** consumes REST API, displays data with filters/sorting
+1. **Taskiq** fetches data from Cartola API and stores active datasets in Redis
+2. A daily **Taskiq** job writes completed-round source snapshots and derived memory JSON under `seasons/{year}/` in S3; every highlighted player is tied to their club, opponent, home/away status, scoreline, and scouts from that fixture
+3. The report agent recalls recent S3 memories before analyzing the next round
+4. **Backend** reads Redis and S3, computes unified views, and serves the REST API
+5. **Frontend** consumes the REST API and displays data with filters/sorting
 
 ## API Endpoints
 
@@ -190,8 +199,8 @@ graph TB
 - `POST /api/dicas-da-rodada/generate` - Start report generation when no cached report exists
 - `POST /api/dicas-da-rodada/regenerate` - Regenerate a completed report
 - `GET /api/dicas-da-rodada/eval` - Check saved recommendation logic against completed rounds by position
-- `GET /api/dicas-da-rodada/history` - List locally saved AI reports
-- `GET /api/dicas-da-rodada/history/{report_id}` - Load a locally saved AI report
+- `GET /api/dicas-da-rodada/history` - List AI reports saved in S3
+- `GET /api/dicas-da-rodada/history/{report_id}` - Load an AI report from S3
 - `GET /api/dicas-da-rodada/runs/{run_id}/stream` - Server-sent generation progress stream
 - `GET /api/tables/status` - Current round & last updated timestamps
 - `GET /api/tables/filter-options` - Available clubs, positions, status for filtering

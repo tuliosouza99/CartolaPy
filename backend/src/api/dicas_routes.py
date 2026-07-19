@@ -11,10 +11,12 @@ from ..services.dicas_da_rodada import (
     delete_archived_report,
     evaluate_matchup_strategy_from_store,
     list_archived_report_rounds,
+    list_archived_report_seasons,
     list_archived_reports,
     load_archived_report,
     report_key,
 )
+from ..services.dicas_memory import current_season_year
 from ..services.redis_store import RedisDataFrameStore
 from .models import (
     DicasGenerateResponse,
@@ -46,6 +48,7 @@ async def get_dicas_da_rodada(
     rodada = _next_rodada(store)
     cache = DicasReportCache(store)
     return DicasStatusResponse(
+        season_year=current_season_year(),
         rodada=rodada,
         report=cache.get_report(rodada),
         active_run=cache.get_active_run(rodada),
@@ -61,6 +64,7 @@ async def generate_dicas_da_rodada(
     report = cache.get_report(rodada)
     if report is not None:
         return DicasGenerateResponse(
+            season_year=current_season_year(),
             rodada=rodada,
             started=False,
             run=None,
@@ -70,6 +74,7 @@ async def generate_dicas_da_rodada(
     active_run = cache.get_active_run(rodada)
     if active_run is not None:
         return DicasGenerateResponse(
+            season_year=current_season_year(),
             rodada=rodada,
             started=False,
             run=active_run,
@@ -79,6 +84,7 @@ async def generate_dicas_da_rodada(
     run = cache.create_run(rodada)
     await _enqueue_generation(run)
     return DicasGenerateResponse(
+        season_year=current_season_year(),
         rodada=rodada,
         started=True,
         run=cache.get_run(run["run_id"]) or run,
@@ -96,6 +102,7 @@ async def regenerate_dicas_da_rodada(
     active_run = cache.get_active_run(rodada)
     if active_run is not None:
         return DicasGenerateResponse(
+            season_year=current_season_year(),
             rodada=rodada,
             started=False,
             run=active_run,
@@ -105,6 +112,7 @@ async def regenerate_dicas_da_rodada(
     run = cache.create_run(rodada)
     await _enqueue_generation(run)
     return DicasGenerateResponse(
+        season_year=current_season_year(),
         rodada=rodada,
         started=True,
         run=cache.get_run(run["run_id"]) or run,
@@ -116,17 +124,24 @@ async def regenerate_dicas_da_rodada(
 async def list_dicas_da_rodada_history(
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
     rodada: Annotated[int | None, Query(ge=1)] = None,
+    season_year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
 ):
+    reports, rodadas, seasons = await asyncio.gather(
+        asyncio.to_thread(list_archived_reports, limit, rodada, season_year),
+        asyncio.to_thread(list_archived_report_rounds, season_year),
+        asyncio.to_thread(list_archived_report_seasons),
+    )
     return DicasHistoryResponse(
-        reports=list_archived_reports(limit=limit, rodada=rodada),
-        rodadas=list_archived_report_rounds(),
+        reports=reports,
+        rodadas=rodadas,
+        seasons=seasons,
     )
 
 
 @router.get("/dicas-da-rodada/history/{report_id}", response_model=DicasReport)
 async def get_dicas_da_rodada_history_report(report_id: str):
     try:
-        report = load_archived_report(report_id)
+        report = await asyncio.to_thread(load_archived_report, report_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if report is None:
@@ -140,24 +155,27 @@ async def delete_dicas_da_rodada_history_report(
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
 ):
     try:
-        report = delete_archived_report(report_id)
+        report = await asyncio.to_thread(delete_archived_report, report_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if report is None:
         raise HTTPException(status_code=404, detail="Report not found")
 
     rodada = report.get("rodada")
+    season_year = report.get("season_year")
     cleared_current = False
     if isinstance(rodada, int):
-        cached_report = DicasReportCache(store).get_report(rodada)
+        cache_key = report_key(rodada, season_year)
+        cached_report = store.load_json(cache_key)
         if cached_report and cached_report.get("report_id") == report_id:
-            store.delete(report_key(rodada))
+            store.delete(cache_key)
             cleared_current = True
 
     return {
         "deleted": True,
         "report_id": report_id,
         "rodada": rodada,
+        "season_year": season_year,
         "cleared_current": cleared_current,
     }
 

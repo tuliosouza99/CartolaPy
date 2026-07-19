@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 from src.dependencies import get_redis_store
+from src.services import dicas_da_rodada as dicas_service
 from src.services.dicas_da_rodada import (
     CartolaPyApiClient,
     DicasEventSink,
@@ -62,7 +63,71 @@ class FakeStore:
 
 
 @pytest.fixture
-def fake_store():
+def fake_memory_store(monkeypatch):
+    class FakeMemoryStore:
+        def __init__(self):
+            self.reports = {}
+
+        def save_report(self, report):
+            archived = {
+                **report,
+                "season_year": report.get("season_year") or 2026,
+                "report_id": report.get("report_id")
+                or f"report-{report['rodada']}-{len(self.reports) + 1}",
+            }
+            self.reports[archived["report_id"]] = archived
+            return archived
+
+        def load_report(self, report_id):
+            return self.reports.get(report_id)
+
+        def delete_report(self, report_id):
+            return self.reports.pop(report_id, None)
+
+        def list_reports(self, limit=30, rodada=None, season_year=None):
+            reports = list(self.reports.values())
+            reports.sort(
+                key=lambda item: str(item.get("generated_at") or ""), reverse=True
+            )
+            if rodada is not None:
+                reports = [item for item in reports if item.get("rodada") == rodada]
+            if season_year is not None:
+                reports = [
+                    item for item in reports if item.get("season_year") == season_year
+                ]
+            return [
+                {
+                    "report_id": item["report_id"],
+                    "season_year": item.get("season_year"),
+                    "rodada": item.get("rodada"),
+                    "title": "Resumo da rodada",
+                    "generated_at": item.get("generated_at"),
+                    "model": item.get("model"),
+                }
+                for item in reports[:limit]
+            ]
+
+        def list_report_rounds(self, season_year=None):
+            reports = self.reports.values()
+            if season_year is not None:
+                reports = [
+                    item for item in reports if item.get("season_year") == season_year
+                ]
+            return sorted({item["rodada"] for item in reports}, reverse=True)
+
+        def list_seasons(self):
+            return sorted(
+                {item["season_year"] for item in self.reports.values()},
+                reverse=True,
+            )
+
+    memory_store = FakeMemoryStore()
+    monkeypatch.setattr(dicas_service, "get_dicas_memory_store", lambda: memory_store)
+    return memory_store
+
+
+@pytest.fixture
+def fake_store(fake_memory_store):
     store = FakeStore()
     broker.state.redis_store = store
     get_redis_store.cache_clear()
@@ -76,6 +141,7 @@ def client(fastapi_app, fake_store):
 
 def sample_report(rodada=16):
     return {
+        "season_year": 2026,
         "rodada": rodada,
         "report_markdown": "# Resumo da rodada\nTexto.",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -84,6 +150,11 @@ def sample_report(rodada=16):
         "recommended_spans": [5, 10],
         "sources": [],
     }
+
+
+def test_report_cache_key_is_isolated_by_season():
+    assert report_key(1, 2025) == "dicas:2025:report:1"
+    assert report_key(1, 2026) == "dicas:2026:report:1"
 
 
 def test_get_dicas_returns_cached_report(client, fake_store):
@@ -113,7 +184,10 @@ def test_generate_creates_run_metadata_and_enqueues(client, fake_store, monkeypa
     assert payload["started"] is True
     assert payload["run"]["status"] == "queued"
     assert fake_store.enqueued == [{"run_id": payload["run"]["run_id"], "rodada": 16}]
-    assert fake_store.load_json("dicas:active:16")["run_id"] == payload["run"]["run_id"]
+    assert (
+        fake_store.load_json("dicas:2026:active:16")["run_id"]
+        == payload["run"]["run_id"]
+    )
 
 
 def test_generate_uses_cached_report_without_enqueue(client, fake_store, monkeypatch):
@@ -155,8 +229,7 @@ def test_regenerate_preserves_old_report_until_new_run_finishes(
     )
 
 
-def test_complete_run_archives_report_as_local_json(fake_store, monkeypatch, tmp_path):
-    monkeypatch.setenv("DICAS_REPORTS_DIR", str(tmp_path))
+def test_complete_run_archives_report_in_memory_store(fake_store):
     cache = DicasReportCache(fake_store)
     run = cache.create_run(16)
 
@@ -169,10 +242,7 @@ def test_complete_run_archives_report_as_local_json(fake_store, monkeypatch, tmp
     assert list_archived_reports()[0]["report_id"] == cached_report["report_id"]
 
 
-def test_history_endpoints_list_and_load_reports(
-    client, fake_store, monkeypatch, tmp_path
-):
-    monkeypatch.setenv("DICAS_REPORTS_DIR", str(tmp_path))
+def test_history_endpoints_list_and_load_reports(client, fake_store):
     cache = DicasReportCache(fake_store)
     run = cache.create_run(16)
     cache.complete_run(run["run_id"], sample_report())
@@ -188,14 +258,12 @@ def test_history_endpoints_list_and_load_reports(
     assert history_payload["reports"][0]["report_id"] == report_id
     assert all(item["rodada"] == 16 for item in history_payload["reports"])
     assert history_payload["rodadas"] == [16, 15]
+    assert history_payload["seasons"] == [2026]
     assert detail_response.status_code == 200
     assert detail_response.json()["report_id"] == report_id
 
 
-def test_delete_history_report_removes_archive_and_current_cache(
-    client, fake_store, monkeypatch, tmp_path
-):
-    monkeypatch.setenv("DICAS_REPORTS_DIR", str(tmp_path))
+def test_delete_history_report_removes_archive_and_current_cache(client, fake_store):
     cache = DicasReportCache(fake_store)
     run = cache.create_run(16)
     cache.complete_run(run["run_id"], sample_report())

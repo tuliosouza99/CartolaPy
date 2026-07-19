@@ -150,6 +150,7 @@ class AtletaHistoricoResponse(BaseModel):
 
 class DicasRunMetadata(BaseModel):
     run_id: str
+    season_year: int | None = None
     rodada: int
     status: Literal["queued", "running", "completed", "failed"]
     created_at: datetime
@@ -160,6 +161,7 @@ class DicasRunMetadata(BaseModel):
 
 class DicasReport(BaseModel):
     report_id: str | None = None
+    season_year: int | None = None
     rodada: int
     report_markdown: str
     generated_at: datetime
@@ -170,12 +172,14 @@ class DicasReport(BaseModel):
 
 
 class DicasStatusResponse(BaseModel):
+    season_year: int
     rodada: int
     report: DicasReport | None = None
     active_run: DicasRunMetadata | None = None
 
 
 class DicasGenerateResponse(BaseModel):
+    season_year: int
     rodada: int
     started: bool
     run: DicasRunMetadata | None = None
@@ -184,6 +188,7 @@ class DicasGenerateResponse(BaseModel):
 
 class DicasReportSummary(BaseModel):
     report_id: str
+    season_year: int | None = None
     rodada: int | None = None
     title: str
     generated_at: datetime | None = None
@@ -193,3 +198,4 @@ class DicasReportSummary(BaseModel):
 class DicasHistoryResponse(BaseModel):
     reports: list[DicasReportSummary] = Field(default_factory=list)
     rodadas: list[int] = Field(default_factory=list)
+    seasons: list[int] = Field(default_factory=list)
