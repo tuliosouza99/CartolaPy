@@ -1,181 +1,163 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  BarChart,
   Bar,
-  XAxis,
-  YAxis,
+  BarChart,
   CartesianGrid,
-  Tooltip,
+  Cell,
+  Line,
   ReferenceLine,
   ResponsiveContainer,
-  Cell,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
+import { SCOUT_BY_CODE } from "./ScoutSelect";
+import "./PontosAnalysisChart.css";
+
+const signed = (value) => `${value > 0 ? "+" : ""}${Number(value || 0).toFixed(2)}`;
+
+function MatchTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const match = payload[0].payload;
+  return (
+    <div className="analysis-tooltip">
+      <div><img src={match.opponent_escudo} alt="" /><strong>{match.opponent_nome}</strong><span>R{match.rodada_id}</span></div>
+      <p><b>{signed(match.pontuacao)}</b> pts <i /> básica {signed(match.pontuacao_basica)}</p>
+      <small>{match.display_is_mandante ? "Mandante" : "Visitante"} · clique para fixar</small>
+    </div>
+  );
+}
 
 function PontosCedidosScoutChart({
   scoutContributions,
   mediaCedida,
   positionScouts,
   totalJogos,
+  matches,
+  matchesLoading = false,
+  matchLabel = "Média por confronto",
+  invertVenue = false,
 }) {
-  const chartData = useMemo(() => {
-    if (!scoutContributions || Object.keys(scoutContributions).length === 0) {
-      return [];
-    }
+  const contributions = useMemo(() => (
+    (positionScouts || [])
+      .filter((code) => scoutContributions?.[code]?.points_contribution)
+      .map((code) => ({
+        code,
+        name: SCOUT_BY_CODE[code]?.name || code,
+        occurrences: Number(scoutContributions[code].raw_sum || 0),
+        points: Number(scoutContributions[code].points_contribution || 0),
+        percentage: Number(scoutContributions[code].percentage || 0),
+      }))
+      .sort((a, b) => Math.abs(b.points) - Math.abs(a.points))
+  ), [positionScouts, scoutContributions]);
 
-    const filteredScouts = (positionScouts || []).filter(
-      (scout) =>
-        scoutContributions[scout] && scoutContributions[scout].percentage !== 0,
-    );
-
-    const jogos = totalJogos || 1;
-
-    return filteredScouts
-      .map((scout) => {
-        const contrib = scoutContributions[scout];
-        return {
-          scout,
-          percentage: contrib?.percentage || 0,
-          perGame: contrib?.raw_sum || 0,
-          pointsPerGame: contrib?.points_contribution || 0,
-        };
-      })
-      .sort((a, b) => b.percentage - a.percentage);
-  }, [scoutContributions, positionScouts, totalJogos]);
-
-  if (chartData.length === 0) {
-    return (
-      <div
-        style={{
-          padding: "1rem",
-          color: "var(--text-muted)",
-          fontSize: "0.875rem",
-          textAlign: "center",
-        }}
-      >
-        Nenhum scout registrado
-      </div>
-    );
-  }
-
-  const maxAbsPercentage = Math.max(
-    ...chartData.map((d) => Math.abs(d.percentage)),
-    100,
+  const matchData = useMemo(
+    () => [...(matches || [])]
+      .map((match) => ({
+        ...match,
+        display_is_mandante: invertVenue ? !match.is_mandante : match.is_mandante,
+      }))
+      .sort((a, b) => a.rodada_id - b.rodada_id),
+    [invertVenue, matches],
   );
+  const [selectedMatch, setSelectedMatch] = useState(null);
 
-  const chartHeight = Math.max(chartData.length * 28, 120);
+  useEffect(() => {
+    setSelectedMatch(matchData.at(-1) || null);
+  }, [matchData]);
+
+  const maxContribution = Math.max(...contributions.map((item) => Math.abs(item.points)), 0.01);
+  const positivePoints = contributions.reduce((sum, item) => sum + Math.max(item.points, 0), 0);
+  const negativePoints = contributions.reduce((sum, item) => sum + Math.min(item.points, 0), 0);
 
   return (
-    <div>
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "0.75rem",
-          fontWeight: 600,
-          color: "var(--text-secondary)",
-          marginBottom: "0.5rem",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        }}
-      >
-        Contribuição por Scout
-      </div>
-      <div style={{ height: `${chartHeight}px` }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={chartData}
-            layout="vertical"
-            margin={{ top: 5, right: 60, left: 0, bottom: 5 }}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="var(--border)"
-              horizontal={false}
-            />
-            <XAxis
-              type="number"
-              domain={[-maxAbsPercentage, maxAbsPercentage]}
-              tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
-              tickFormatter={(val) => `${Math.abs(val)}%`}
-            />
-            <YAxis
-              type="category"
-              dataKey="scout"
-              tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
-              width={50}
-              tickLine={false}
-              interval={0}
-            />
-            <Tooltip content={<CustomTooltip mediaCedida={mediaCedida} />} />
-            <ReferenceLine x={0} stroke="var(--border)" />
-            <Bar dataKey="percentage" radius={[0, 4, 4, 0]} barSize={16}>
-              {chartData.map((entry) => (
-                <Cell
-                  key={entry.scout}
-                  fill={
-                    entry.percentage >= 0
-                      ? "var(--orange)"
-                      : "var(--text-muted)"
-                  }
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}
+    <section className="points-analysis-card">
+      <header className="points-analysis-heading">
+        <div><span>DECOMPOSIÇÃO CARTOLA</span><h3>Raio-x da média</h3><p>Ocorrências e pontos médios no recorte selecionado.</p></div>
+        <div className="analysis-kpis">
+          <div><span>MÉDIA</span><strong>{signed(mediaCedida)}</strong></div>
+          <div><span>JOGOS</span><strong>{totalJogos || 0}</strong></div>
+          <div className="positive"><span>POSITIVOS</span><strong>{signed(positivePoints)}</strong></div>
+          <div className="negative"><span>NEGATIVOS</span><strong>{signed(negativePoints)}</strong></div>
+        </div>
+      </header>
 
-function CustomTooltip({ active, payload, mediaCedida }) {
-  if (!active || !payload || !payload.length) return null;
+      <div className="points-analysis-grid">
+        <div className="contribution-panel">
+          <div className="analysis-panel-title"><span>Contribuição por scout</span><small>pts por atleta / jogo</small></div>
+          {contributions.length ? (
+            <div className="contribution-list">
+              {contributions.map((item) => {
+                const width = `${(Math.abs(item.points) / maxContribution) * 50}%`;
+                return (
+                  <div className="contribution-row" key={item.code} title={`${item.name}: ${item.occurrences.toFixed(2)} ocorrências por atleta/jogo`}>
+                    <div className="contribution-name"><b>{item.code}</b><span>{item.name}</span></div>
+                    <div className="contribution-track">
+                      <i />
+                      <span className={item.points >= 0 ? "bar positive" : "bar negative"} style={{ width }} />
+                    </div>
+                    <strong className={item.points >= 0 ? "positive" : "negative"}>{signed(item.points)}</strong>
+                    <small>{Math.abs(item.percentage).toFixed(1)}%</small>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <div className="analysis-empty">Nenhum scout registrado</div>}
+        </div>
 
-  const data = payload[0]?.payload;
+        <div className="matches-panel">
+          <div className="analysis-panel-title"><span>{matchLabel}</span><small>barra: total · linha: básica</small></div>
+          {matchesLoading ? <div className="analysis-empty">Carregando confrontos…</div> : !matchData.length ? (
+            <div className="analysis-empty">Nenhum confronto encontrado</div>
+          ) : (
+            <>
+              <div className="analysis-match-chart">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={matchData} margin={{ top: 16, right: 12, left: -20, bottom: 0 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,.07)" vertical={false} />
+                    <XAxis dataKey="rodada_id" tickFormatter={(value) => `R${value}`} tick={{ fill: "#8b9098", fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: "#8b9098", fontSize: 10 }} axisLine={false} tickLine={false} width={38} />
+                    <ReferenceLine y={0} stroke="#656a72" />
+                    <Tooltip content={<MatchTooltip />} cursor={{ fill: "rgba(249,115,22,.06)" }} />
+                    <Bar dataKey="pontuacao" radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={false}>
+                      {matchData.map((match) => (
+                        <Cell
+                          key={`${match.partida_id}-${match.rodada_id}`}
+                          onClick={() => setSelectedMatch(match)}
+                          cursor="pointer"
+                          fill={match.pontuacao >= 0 ? "#f97316" : "#ef4444"}
+                          opacity={selectedMatch?.partida_id === match.partida_id ? 1 : .62}
+                        />
+                      ))}
+                    </Bar>
+                    <Line
+                      type="monotone"
+                      dataKey="pontuacao_basica"
+                      stroke="#f8fafc"
+                      strokeWidth={2}
+                      pointerEvents="none"
+                      isAnimationActive={false}
+                      dot={{ r: 2, fill: "#f8fafc", pointerEvents: "none" }}
+                      activeDot={{ r: 4, pointerEvents: "none" }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
 
-  return (
-    <div
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-sm)",
-        padding: "0.75rem",
-        fontSize: "0.75rem",
-        boxShadow: "var(--shadow-md)",
-      }}
-    >
-      <div style={{ marginBottom: "0.5rem" }}>
-        <span style={{ color: "var(--text-secondary)" }}>Scout: </span>
-        <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-          {data?.scout}
-        </span>
+              {selectedMatch && (
+                <div className="analysis-match-rail">
+                  <img src={selectedMatch.opponent_escudo} alt="" />
+                  <div><span>R{selectedMatch.rodada_id} · {selectedMatch.display_is_mandante ? "MANDANTE" : "VISITANTE"}</span><strong>{selectedMatch.opponent_nome}</strong></div>
+                  <div><span>TOTAL</span><strong>{signed(selectedMatch.pontuacao)}</strong></div>
+                  <div><span>BÁSICA</span><strong>{signed(selectedMatch.pontuacao_basica)}</strong></div>
+                  <a href={`/confrontos?rodada=${selectedMatch.rodada_id}&partida_id=${selectedMatch.partida_id}`} aria-label="Abrir confronto">↗</a>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
-      <div style={{ marginBottom: "0.25rem" }}>
-        <span style={{ color: "var(--text-secondary)" }}>Pontos/Jogo: </span>
-        <span style={{ fontWeight: 600, color: "var(--orange)" }}>
-          {Number(data?.pointsPerGame || 0).toFixed(2)}
-        </span>
-      </div>
-      <div style={{ marginBottom: "0.25rem" }}>
-        <span style={{ color: "var(--text-secondary)" }}>
-          Ocorrências/Jogo:{" "}
-        </span>
-        <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-          {Number(data?.perGame || 0).toFixed(2)}
-        </span>
-      </div>
-      <div>
-        <span style={{ color: "var(--text-secondary)" }}>Contribuição: </span>
-        <span
-          style={{
-            fontWeight: 600,
-            color:
-              data?.percentage >= 0 ? "var(--orange)" : "var(--text-muted)",
-          }}
-        >
-          {data?.percentage >= 0 ? "+" : ""}
-          {Number(data?.percentage || 0).toFixed(1)}%
-        </span>
-      </div>
-    </div>
+    </section>
   );
 }
 

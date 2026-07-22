@@ -6,6 +6,7 @@ import PontosConquistadosUnified from './pages/PontosConquistadosUnified'
 import PontosCedidosUnified from './pages/PontosCedidosUnified'
 import Confrontos from './pages/Confrontos'
 import DicasDaRodada from './pages/DicasDaRodada'
+import PlayerView from './pages/PlayerView'
 
 
 export const ThemeContext = createContext()
@@ -34,7 +35,7 @@ function App() {
         transition: 'background-color var(--transition)'
       }}>
         <Navbar />
-        <main style={{
+        <main className="app-main" style={{
           flex: 1,
           padding: '2rem',
           maxWidth: '1400px',
@@ -44,6 +45,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/atletas" replace />} />
             <Route path="/atletas" element={<AtletasUnified key="atletas" />} />
+            <Route path="/atletas/:atletaId" element={<PlayerView />} />
             <Route path="/pontos-conquistados" element={<PontosConquistadosUnified key="pontos-conquistados" />} />
             <Route path="/pontos-cedidos" element={<PontosCedidosUnified key="pontos-cedidos" />} />
             <Route path="/confrontos" element={<Confrontos key="confrontos" />} />

@@ -11,6 +11,7 @@ const navItems = [
 
 function Navbar() {
   const location = useLocation();
+  const isActive = (path) => location.pathname === path || (path === "/atletas" && location.pathname.startsWith("/atletas/"));
 
   const handleNav = (e, path) => {
     if (e.ctrlKey || e.metaKey || e.button === 1) {
@@ -33,6 +34,7 @@ function Navbar() {
       }}
     >
       <div
+        className="navbar-shell"
         style={{
           maxWidth: "1400px",
           margin: "0 auto",
@@ -43,6 +45,7 @@ function Navbar() {
         }}
       >
         <a
+          className="navbar-brand"
           href="/"
           style={{ display: "flex", alignItems: "center", gap: "0.75rem", textDecoration: "none" }}
         >
@@ -76,7 +79,7 @@ function Navbar() {
           </span>
         </a>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <div className="navbar-links" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           {navItems.map((item) => (
             <button
               key={item.path}
@@ -90,23 +93,23 @@ function Navbar() {
                 border: "none",
                 cursor: "pointer",
                 color:
-                  location.pathname === item.path
+                  isActive(item.path)
                     ? "var(--orange)"
                     : "var(--text-secondary)",
                 background:
-                  location.pathname === item.path
+                  isActive(item.path)
                     ? "rgba(249, 115, 22, 0.1)"
                     : "transparent",
                 transition: "all var(--transition)",
               }}
               onMouseEnter={(e) => {
-                if (location.pathname !== item.path) {
+                if (!isActive(item.path)) {
                   e.target.style.color = "var(--text-primary)";
                   e.target.style.background = "var(--bg-tertiary)";
                 }
               }}
               onMouseLeave={(e) => {
-                if (location.pathname !== item.path) {
+                if (!isActive(item.path)) {
                   e.target.style.color = "var(--text-secondary)";
                   e.target.style.background = "transparent";
                 }

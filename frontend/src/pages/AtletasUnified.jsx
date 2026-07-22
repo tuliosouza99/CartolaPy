@@ -4,7 +4,6 @@ import FilterSidebar from "../components/FilterSidebar";
 import RoundIntervalSlider from "../components/RoundIntervalSlider";
 import MandoToggle from "../components/MandoToggle";
 import ScoutSelect, { SCOUT_BY_CODE } from "../components/ScoutSelect";
-import AtletaCharts from "../components/AtletaCharts";
 
 const STATUS_COLORS = {
   green: "#22c55e",
@@ -173,7 +172,25 @@ function AtletasUnified() {
 
   const columns = useMemo(() => {
     const baseColumns = [
-      { key: "apelido", label: "Atleta", sortable: true },
+      {
+        key: "apelido",
+        label: "Atleta",
+        sortable: true,
+        renderCell: (row) => {
+          const params = new URLSearchParams();
+          if (rodadaRange.min !== 1) params.set("rodada_min", rodadaRange.min);
+          if (rodadaRange.max !== (statusData?.rodada_atual || 1)) params.set("rodada_max", rodadaRange.max);
+          if (isMandante !== "geral") params.set("is_mandante", isMandante);
+          const href = `/atletas/${row.atleta_id}${params.toString() ? `?${params}` : ""}`;
+          return (
+            <a href={href} style={{ display: "inline-flex", alignItems: "center", gap: ".65rem", fontWeight: 700 }}>
+              {row.foto && <img src={row.foto.replace("FORMATO", "80x80")} alt="" style={{ width: 30, height: 30, objectFit: "contain", borderRadius: "50%", background: "var(--bg-tertiary)" }} />}
+              <span>{row.apelido}</span>
+              <span style={{ color: "var(--orange)", fontSize: ".75rem" }}>↗</span>
+            </a>
+          );
+        },
+      },
       {
         key: "clube_escudo",
         label: "Clube",
@@ -297,72 +314,7 @@ function AtletasUnified() {
     });
 
     return baseColumns;
-  }, [scout]);
-
-  const expandedContent = useCallback((row) => {
-    const scouts = row.scouts || {};
-    const scoutEntries = Object.entries(scouts).filter(
-      ([_, value]) => value > 0,
-    );
-
-    return (
-      <div style={{ padding: "1rem" }}>
-        {scoutEntries.length > 0 && (
-          <>
-            <div
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                color: "var(--text-secondary)",
-                marginBottom: "0.5rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              Scouts
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "0.5rem",
-                marginBottom: "0.5rem",
-              }}
-            >
-              {scoutEntries.map(([key, value]) => (
-                <span
-                  key={key}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.25rem",
-                    padding: "0.25rem 0.5rem",
-                    background: "var(--bg-card)",
-                    borderRadius: "var(--radius-sm)",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "0.75rem",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>{key}</span>
-                  <span style={{ color: "var(--orange)" }}>{value}</span>
-                </span>
-              ))}
-            </div>
-          </>
-        )}
-
-        <AtletaCharts
-          atleta_id={row.atleta_id}
-          rodadaRange={rodadaRange}
-          isMandante={isMandante}
-          media={row.media}
-          media_basica={row.media_basica}
-        />
-      </div>
-    );
-  }, [rodadaRange, isMandante]);
+  }, [scout, rodadaRange, statusData?.rodada_atual, isMandante]);
 
   const topBarComponent = useMemo(
     () => (
@@ -436,8 +388,7 @@ function AtletasUnified() {
           columns={columns}
           filterComponent={topBarComponent}
           extraParams={extraParams}
-          expandable={true}
-          expandedContent={expandedContent}
+          expandable={false}
           hideCount={true}
           hideUpdate={true}
           hideTimestamps={true}

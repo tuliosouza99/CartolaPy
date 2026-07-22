@@ -31,6 +31,8 @@ class Atletas:
             "status_id",
             "preco_num",
             "apelido",
+            "nome",
+            "foto",
         ]
 
     async def fill_atletas(self) -> AtletasResult:
@@ -44,7 +46,11 @@ class Atletas:
             else None
         )
 
-        df = pd.DataFrame([a.model_dump() for a in validated.atletas])[self.columns]
+        df = pd.DataFrame([a.model_dump() for a in validated.atletas]).reindex(
+            columns=self.columns
+        )
+        for optional_column in ("nome", "foto"):
+            df[optional_column] = df[optional_column].fillna("")
         clubes = {k: v.model_dump() for k, v in validated.clubes.items()}
         posicoes = {k: v.model_dump() for k, v in validated.posicoes.items()}
         status = {k: v.model_dump() for k, v in validated.status.items()}

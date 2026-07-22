@@ -61,7 +61,7 @@ def compute_pontos_conquistados_unified(
             media_conquistada=("pontuacao", "mean"),
             media_conquistada_basica=("pontuacao_basica", "mean"),
             total_jogos=("rodada_id", "nunique"),
-            total_atletas=("atleta_id", "nunique"),
+            total_atleta_jogos=("atleta_id", "size"),
             **{scout: (scout, "sum") for scout in scout_cols},
         )
         .reset_index()
@@ -76,12 +76,16 @@ def compute_pontos_conquistados_unified(
     scout_pts = scout_sums.mul(scout_value_series, axis=1)
     total_points = scout_pts.sum(axis=1)
 
-    scout_avgs = scout_sums.div(pont_agg["total_jogos"], axis=0).div(
-        pont_agg["total_atletas"].where(pont_agg["total_atletas"] > 0, 1), axis=0
+    # The table's headline average is computed over athlete-match rows. Scout
+    # rates must use the exact same grain. Dividing by games * distinct players
+    # undercounts whenever a player misses one of the selected rounds.
+    scout_avgs = scout_sums.div(
+        pont_agg["total_atleta_jogos"].where(pont_agg["total_atleta_jogos"] > 0, 1),
+        axis=0,
     )
 
     scout_avg_pts = scout_avgs.mul(scout_value_series, axis=1)
-    avg_total_points = scout_avg_pts.sum(axis=1)
+    avg_absolute_points = scout_avg_pts.abs().sum(axis=1)
 
     long = (
         pd.concat(
@@ -95,15 +99,15 @@ def compute_pontos_conquistados_unified(
         .rename(columns={"level_0": "row_idx", "level_1": "scout"})
         .query("raw_sum != 0")
         .assign(
-            total_raw=lambda df_: df_["row_idx"].map(avg_total_points),
+            total_absolute=lambda df_: df_["row_idx"].map(avg_absolute_points),
             raw_sum=lambda df_: df_["raw_sum"].round(2),
             points_contribution=lambda df_: df_["points_contribution"].round(2),
             percentage=lambda df_: (
                 df_["points_contribution"]
-                .div(df_["total_raw"])
+                .div(df_["total_absolute"])
                 .mul(100)
                 .round(1)
-                .where(df_["total_raw"] != 0, 0.0)
+                .where(df_["total_absolute"] != 0, 0.0)
             ),
         )
     )

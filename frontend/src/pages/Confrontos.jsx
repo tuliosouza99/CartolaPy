@@ -180,9 +180,17 @@ function Confrontos() {
         gap: "0.25rem",
       }}
     >
-      {players.map((player) => (
-        <div
+      {players.map((player) => {
+        const playerHref = `/atletas/${player.atleta_id}?rodada_min=${rodada}&rodada_max=${rodada}`;
+        return (
+        <a
           key={player.atleta_id}
+          href={playerHref}
+          onClick={(event) => {
+            event.stopPropagation();
+            window.location.href = playerHref;
+          }}
+          title={`Abrir dossiê de ${player.apelido}`}
           style={{
             display: "flex",
             flexDirection: "column",
@@ -191,6 +199,9 @@ function Confrontos() {
             padding: "0.25rem 0.5rem",
             background: "rgba(255,255,255,0.03)",
             borderRadius: "var(--radius-sm)",
+            color: "inherit",
+            textDecoration: "none",
+            cursor: "pointer",
           }}
         >
           <div
@@ -222,9 +233,11 @@ function Confrontos() {
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
                 color: "var(--text-primary)",
+                textDecoration: "none",
+                fontWeight: 600,
               }}
             >
-              {player.apelido}
+              {player.apelido}<span style={{ color: "var(--orange)", marginLeft: "0.35rem", fontSize: "0.65rem" }}>↗</span>
             </span>
             <span
               style={{
@@ -268,8 +281,8 @@ function Confrontos() {
               </span>
             )}
           </div>
-        </div>
-      ))}
+        </a>
+      );})}
     </div>
   );
 

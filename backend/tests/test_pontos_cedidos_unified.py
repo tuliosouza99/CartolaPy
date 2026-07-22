@@ -67,6 +67,7 @@ class TestComputePontosCedidosUnified:
         second_row = result[result["clube_id"] == 20].iloc[0]
         assert first_row["scout_contributions"] is None
         assert second_row["scout_contributions"]["DS"]["raw_sum"] == 3.0
+        assert second_row["scout_contributions"]["DS"]["points_contribution"] == 4.5
 
     def test_filters_by_posicao_id(self, sample_pontos_cedidos_df):
         result = compute_pontos_cedidos_unified(

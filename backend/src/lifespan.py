@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from .dependencies import get_redis_store
 from .services import DataLoader
+from .services.fotmob_mappings import seed_fotmob_club_mappings
 from .tkq import broker
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ async def setup_dl(app: FastAPI):
     store = get_redis_store()
     app.state.data_loader = DataLoader()
     app.state.redis_store = store
+    seed_fotmob_club_mappings(store)
 
     atletas_df = store.load_dataframe("atletas")
     if atletas_df is None or atletas_df.empty:

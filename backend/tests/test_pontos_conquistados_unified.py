@@ -71,6 +71,62 @@ class TestComputePontosConquistadosUnified:
         second_row = result[result["clube_id"] == 20].iloc[0]
         assert first_row["scout_contributions"] is None
         assert second_row["scout_contributions"]["DS"]["raw_sum"] == 3.0
+        assert second_row["scout_contributions"]["DS"]["points_contribution"] == 4.5
+
+    def test_scout_contributions_use_athlete_match_grain(self):
+        scouts = {scout: [0, 0, 0] for scout in Scout.as_list()}
+        scouts["DS"] = [1, 1, 1]
+        df = pd.DataFrame(
+            {
+                "atleta_id": [1, 2, 1],
+                "clube_id": [10, 10, 10],
+                "posicao_id": [5, 5, 5],
+                "is_mandante": [True, True, False],
+                "rodada_id": [1, 1, 2],
+                "pontuacao": [1.5, 1.5, 1.5],
+                "pontuacao_basica": [1.5, 1.5, 1.5],
+                "status_id": [7, 7, 7],
+                **scouts,
+            }
+        )
+
+        result = compute_pontos_conquistados_unified(
+            df,
+            rodada_min=1,
+            rodada_max=2,
+            is_mandante="geral",
+            posicao_id=5,
+        ).iloc[0]
+
+        contribution = result["scout_contributions"]["DS"]
+        assert contribution["raw_sum"] == 1.0
+        assert contribution["points_contribution"] == 1.5
+        assert contribution["percentage"] == 100.0
+
+    def test_percentages_are_signed_shares_of_absolute_contribution(self):
+        scouts = {scout: [0] for scout in Scout.as_list()}
+        scouts["G"] = [1]
+        scouts["CV"] = [1]
+        df = pd.DataFrame(
+            {
+                "atleta_id": [1],
+                "clube_id": [10],
+                "posicao_id": [5],
+                "is_mandante": [True],
+                "rodada_id": [1],
+                "pontuacao": [5.0],
+                "pontuacao_basica": [0.0],
+                "status_id": [7],
+                **scouts,
+            }
+        )
+
+        result = compute_pontos_conquistados_unified(df, 1, 1, "geral", 5).iloc[0][
+            "scout_contributions"
+        ]
+
+        assert result["G"]["percentage"] == 72.7
+        assert result["CV"]["percentage"] == -27.3
 
     def test_filters_by_posicao_id(self, sample_pontuacoes_df):
         result = compute_pontos_conquistados_unified(

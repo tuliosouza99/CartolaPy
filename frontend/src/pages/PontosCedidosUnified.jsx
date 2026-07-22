@@ -318,99 +318,16 @@ function PontosCedidosUnified() {
 
       return (
         <div style={{ padding: "1rem" }}>
-          {row.scout_contributions && Object.keys(row.scout_contributions).length > 0 && (
-            <PontosCedidosScoutChart
-              scoutContributions={row.scout_contributions}
-              mediaCedida={row.media_cedida}
-              positionScouts={positionScouts}
-              totalJogos={row.total_jogos}
-            />
-          )}
-
-          <div
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              color: "var(--text-secondary)",
-              marginBottom: "0.5rem",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-            }}
-          >
-            Média Cedida por Confronto
-          </div>
-          {!matchData ? (
-            <div style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-              Carregando...
-            </div>
-          ) : matchData.length === 0 ? (
-            <div style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-              Nenhum confronto encontrado
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, 1fr)",
-                gap: "0.5rem",
-              }}
-            >
-              {matchData.map((match) => (
-                <a
-                  key={match.partida_id}
-                  href={`/confrontos?rodada=${match.rodada_id}&partida_id=${match.partida_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.5rem",
-                    background: "var(--bg-card)",
-                    borderRadius: "var(--radius-sm)",
-                    textDecoration: "none",
-                    color: "var(--text-primary)",
-                    fontSize: "0.75rem",
-                  }}
-                >
-                  <img
-                    src={match.opponent_escudo}
-                    alt="opponent"
-                    style={{
-                      width: "18px",
-                      height: "18px",
-                      objectFit: "contain",
-                    }}
-                    onError={(e) => {
-                      e.target.style.display = "none";
-                    }}
-                  />
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {match.opponent_nome}
-                  </span>
-                  <span
-                    style={{
-                      padding: "0.125rem 0.25rem",
-                      background: match.is_mandante ? "var(--orange)" : "var(--bg-secondary)",
-                      color: match.is_mandante ? "white" : "var(--text-secondary)",
-                      borderRadius: "var(--radius-sm)",
-                      fontSize: "0.625rem",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {match.is_mandante ? "M" : "V"}
-                  </span>
-                  <span style={{ color: "var(--text-secondary)", fontSize: "0.625rem" }}>
-                    R{String(match.rodada_id).padStart(2, "0")}
-                  </span>
-                  <span style={{ color: "var(--orange)", fontWeight: 600, fontSize: "0.75rem" }}>
-                    {Number(match.pontuacao).toFixed(1)}
-                  </span>
-                </a>
-              ))}
-            </div>
-          )}
+          <PontosCedidosScoutChart
+            scoutContributions={row.scout_contributions || {}}
+            mediaCedida={row.media_cedida}
+            positionScouts={positionScouts}
+            totalJogos={row.total_jogos}
+            matches={matchData || []}
+            matchesLoading={!matchData}
+            matchLabel="Pontos cedidos por confronto"
+            invertVenue
+          />
         </div>
       );
     },

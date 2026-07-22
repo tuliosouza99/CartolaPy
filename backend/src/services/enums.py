@@ -12,9 +12,9 @@ class Scout(Enum):
     V = {"name": "Vitória", "value": 1}
     I = {"name": "Impedimento", "value": -0.1}  # noqa: E741
     PP = {"name": "Pênalti perdido", "value": -4}
-    DS = {"name": "Desarme", "value": 1.2}
+    DS = {"name": "Desarme", "value": 1.5}
     SG = {"name": "Jogo sem sofrer gol", "value": 5}
-    DE = {"name": "Defesa", "value": 1}
+    DE = {"name": "Defesa", "value": 1.3}
     DP = {"name": "Defesa de pênalti", "value": 7}
     CV = {"name": "Cartão vermelho", "value": -3}
     CA = {"name": "Cartão amarelo", "value": -1}

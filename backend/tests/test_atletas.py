@@ -150,4 +150,6 @@ class TestAtletas:
             "status_id",
             "preco_num",
             "apelido",
+            "nome",
+            "foto",
         ]

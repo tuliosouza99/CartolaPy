@@ -11,6 +11,8 @@ from ..dependencies import get_data_loader, get_redis_store
 from ..services import DataLoader
 from ..services.atletas_unified import compute_atletas_unified
 from ..services.cartola_models import ClubeData, validate_partidas_response
+from ..services.fotmob import FotmobMappingError, FotmobService
+from ..services.player_view import build_cartola_player_view
 from ..services.pontos_cedidos_unified import compute_pontos_cedidos_unified
 from ..services.pontos_conquistados_unified import compute_pontos_conquistados_unified
 from ..services.redis_store import RedisDataFrameStore
@@ -545,6 +547,8 @@ async def get_atletas_unified(
     output_cols = [
         "atleta_id",
         "apelido",
+        "nome",
+        "foto",
         "clube_id",
         "clube_escudo",
         "posicao_id",
@@ -709,6 +713,88 @@ async def get_atleta_historico(
     results.sort(key=lambda x: x.rodada_id, reverse=True)
 
     return AtletaHistoricoResponse(atleta_id=atleta_id, historico=results)
+
+
+@router.get("/players/{atleta_id}")
+@limiter.limit("100/minute")
+async def get_player_view(
+    request: Request,
+    atleta_id: int,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+    rodada_min: int = Query(default=1, ge=1),
+    rodada_max: int | None = None,
+    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+):
+    rodada_atual = store.load_rodada_id() or 1
+    if rodada_max is None:
+        rodada_max = rodada_atual
+    if rodada_min > rodada_max:
+        raise HTTPException(
+            status_code=422,
+            detail="rodada_min must be less than or equal to rodada_max",
+        )
+
+    atletas_df = store.load_dataframe("atletas")
+    pontuacoes_df = store.load_dataframe("pontuacoes")
+    confrontos_df = store.load_dataframe("confrontos")
+    if not isinstance(atletas_df, pd.DataFrame) or atletas_df.empty:
+        raise HTTPException(status_code=500, detail="No data found for atletas")
+    if not isinstance(pontuacoes_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for pontuacoes")
+    if not isinstance(confrontos_df, pd.DataFrame):
+        raise HTTPException(status_code=500, detail="No data found for confrontos")
+
+    matching_players = atletas_df.loc[
+        pd.to_numeric(atletas_df["atleta_id"], errors="coerce") == atleta_id
+    ].sort_values("rodada_id", ascending=False)
+    if matching_players.empty:
+        raise HTTPException(status_code=404, detail="Atleta não encontrado")
+
+    player = matching_players.iloc[0].to_dict()
+    clubes_cache = store.load_json("clubes") or {}
+    posicoes_cache = store.load_json("posicoes") or {}
+    status_cache = store.load_json("status") or {}
+    cartola = build_cartola_player_view(
+        player=player,
+        pontuacoes_df=pontuacoes_df,
+        confrontos_df=confrontos_df,
+        clubes_cache=clubes_cache,
+        posicoes_cache=posicoes_cache,
+        status_cache=status_cache,
+        rodada_min=rodada_min,
+        rodada_max=rodada_max,
+        is_mandante=is_mandante.value,
+    )
+
+    fotmob_service = FotmobService(store, data_loader.request_handler)
+    try:
+        opta = await fotmob_service.get_opta_view(
+            cartola_player=player,
+            cartola_club=clubes_cache.get(str(int(player["clube_id"])), {}),
+            rodada_min=rodada_min,
+            rodada_max=rodada_max,
+            is_mandante=is_mandante.value,
+        )
+    except FotmobMappingError as exc:
+        opta = {"available": False, "error": str(exc), "data_provider": "Opta"}
+    except Exception:
+        logger.exception("Failed to load FotMob data for atleta %s", atleta_id)
+        opta = {
+            "available": False,
+            "error": "Os dados Opta estão temporariamente indisponíveis.",
+            "data_provider": "Opta",
+        }
+
+    return {
+        "filters": {
+            "round_min": rodada_min,
+            "round_max": rodada_max,
+            "venue": is_mandante.value,
+        },
+        "cartola": cartola,
+        "opta": opta,
+    }
 
 
 @router.get("/tables/pontos-cedidos-unified", response_model=TableResponse)

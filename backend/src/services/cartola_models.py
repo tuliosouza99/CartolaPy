@@ -15,6 +15,8 @@ class AtletaItem(BaseModel):
     status_id: int
     preco_num: float
     apelido: str
+    nome: str = ""
+    foto: str = ""
 
     @field_validator("atleta_id", "rodada_id", "clube_id", "posicao_id", "status_id")
     @classmethod
