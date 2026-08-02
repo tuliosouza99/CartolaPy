@@ -1,6 +1,5 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
 
 # Brasileirão Série A 2026. Cartola club IDs come from /atletas/mercado and
 # FotMob IDs come from league 268. This table is authoritative for the season;
@@ -63,7 +62,7 @@ def build_predefined_club_mapping(cartola_club_id: int) -> dict[str, Any] | None
         "cartola_name": predefined["cartola_slug"],
         "matched_by": "predefined_brasileirao_2026",
         "confidence": 1.0,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
 

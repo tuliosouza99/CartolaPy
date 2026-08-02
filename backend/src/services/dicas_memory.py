@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -38,7 +38,7 @@ class DicasMemoryStorageError(DicasMemoryError):
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def current_season_year() -> int:
@@ -360,7 +360,7 @@ class S3DicasMemoryStore:
 
     def load_round_source(self, season_year: int, rodada: int) -> dict | None:
         value = self._get_json(
-            (f"{self._season_root(season_year)}/sources/rounds/rodada-{rodada}.json")
+            f"{self._season_root(season_year)}/sources/rounds/rodada-{rodada}.json"
         )
         return value if isinstance(value, dict) else None
 
@@ -395,7 +395,7 @@ class S3DicasMemoryStore:
 
     def load_round_memory(self, season_year: int, rodada: int) -> dict | None:
         value = self._get_json(
-            (f"{self._season_root(season_year)}/memories/rounds/rodada-{rodada}.json")
+            f"{self._season_root(season_year)}/memories/rounds/rodada-{rodada}.json"
         )
         return value if isinstance(value, dict) else None
 

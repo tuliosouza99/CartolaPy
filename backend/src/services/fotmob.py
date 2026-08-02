@@ -1,13 +1,12 @@
 import asyncio
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from typing import Any, Literal
 from urllib.parse import urlencode
 
 from .fotmob_mappings import build_predefined_club_mapping
-
 
 FOTMOB_BASE_URL = "https://www.fotmob.com/api/data"
 FOTMOB_SEARCH_URL = "https://apigw.fotmob.com/searchapi/suggest"
@@ -77,12 +76,24 @@ class FotmobService:
 
         payload = await self.request_handler.make_get_request(url)
         if not isinstance(payload, dict):
-            raise RuntimeError(f"Unexpected FotMob response for {cache_key}")
+            raise TypeError(f"Unexpected FotMob response for {cache_key}")
         self.store.save_json(cache_key, payload, ttl_seconds=ttl_seconds)
         return payload
 
-    async def get_league(self) -> dict[str, Any]:
+    async def get_league(self, force_refresh: bool = False) -> dict[str, Any]:
         query = urlencode({"id": BRASILEIRAO_LEAGUE_ID, "ccode3": "BRA"})
+        if force_refresh:
+            payload = await self.request_handler.make_get_request(
+                f"{FOTMOB_BASE_URL}/leagues?{query}"
+            )
+            if not isinstance(payload, dict):
+                raise RuntimeError("Unexpected FotMob league response")
+            self.store.save_json(
+                f"fotmob:league:{BRASILEIRAO_LEAGUE_ID}",
+                payload,
+                ttl_seconds=6 * 60 * 60,
+            )
+            return payload
         return await self._cached_get(
             f"fotmob:league:{BRASILEIRAO_LEAGUE_ID}",
             f"{FOTMOB_BASE_URL}/leagues?{query}",
@@ -168,7 +179,7 @@ class FotmobService:
             "fotmob_name": candidate.get("name", ""),
             "matched_by": "brasileirao_club_name",
             "confidence": round(score, 3),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
         self.store.save_json(mapping_key, mapping)
         return mapping
@@ -295,7 +306,7 @@ class FotmobService:
             "fotmob_team_id": fotmob_team_id,
             "matched_by": matched_by,
             "confidence": round(score, 3),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
         self.store.save_json(mapping_key, mapping)
         return mapping

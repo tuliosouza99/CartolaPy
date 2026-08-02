@@ -7,7 +7,8 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from .api.auth import settings
 from .api.dicas_routes import router as dicas_router
-from .api.routes import router as api_router, limiter
+from .api.routes import limiter
+from .api.routes import router as api_router
 from .lifespan import _lifespan
 
 

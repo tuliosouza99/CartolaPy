@@ -1,8 +1,10 @@
 import io
 import json
+from typing import ClassVar
 
 import pandas as pd
 import pytest
+
 from src.services import dicas_memory
 from src.services.dicas_memory import (
     S3DicasMemoryStore,
@@ -13,7 +15,7 @@ from src.services.dicas_memory import (
 
 
 class NoSuchKeyError(Exception):
-    response = {"Error": {"Code": "NoSuchKey"}}
+    response: ClassVar[dict[str, dict[str, str]]] = {"Error": {"Code": "NoSuchKey"}}
 
 
 class FakeS3Client:

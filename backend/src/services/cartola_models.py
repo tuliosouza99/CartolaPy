@@ -3,7 +3,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -90,7 +89,7 @@ class PontuadosResponse(BaseModel):
     ) -> dict[str, dict[str, Any]]:
         for key, data in v.items():
             if not isinstance(data, dict):
-                raise ValueError(f"atleta {key} should be a dict")
+                raise TypeError(f"atleta {key} should be a dict")
             if "clube_id" not in data:
                 raise ValueError(f"atleta {key} missing clube_id")
         return v

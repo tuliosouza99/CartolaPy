@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from src.services.fotmob import FotmobService, name_score, normalize_name
 from src.services.fotmob_mappings import (
     BRASILEIRAO_CLUB_MAPPINGS,

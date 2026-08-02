@@ -1,4 +1,5 @@
 import pandas as pd
+
 from src.services.player_view import build_cartola_player_view
 
 

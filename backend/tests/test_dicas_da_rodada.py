@@ -1,16 +1,17 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
+
 from src.dependencies import get_redis_store
 from src.services import dicas_da_rodada as dicas_service
 from src.services.dicas_da_rodada import (
+    DEFAULT_DICAS_MODEL,
     CartolaPyApiClient,
     DicasEventSink,
     DicasReportCache,
-    DEFAULT_DICAS_MODEL,
     _match_snippets_from_text,
     build_matchup_insights_from_store,
     build_position_recommendation_board_from_store,
@@ -144,7 +145,7 @@ def sample_report(rodada=16):
         "season_year": 2026,
         "rodada": rodada,
         "report_markdown": "# Resumo da rodada\nTexto.",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "model": DEFAULT_DICAS_MODEL,
         "reasoning_effort": "medium",
         "recommended_spans": [5, 10],

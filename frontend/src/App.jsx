@@ -7,6 +7,7 @@ import PontosCedidosUnified from './pages/PontosCedidosUnified'
 import Confrontos from './pages/Confrontos'
 import DicasDaRodada from './pages/DicasDaRodada'
 import PlayerView from './pages/PlayerView'
+import TeamStats from './pages/TeamStats'
 
 
 export const ThemeContext = createContext()
@@ -50,6 +51,7 @@ function App() {
             <Route path="/pontos-cedidos" element={<PontosCedidosUnified key="pontos-cedidos" />} />
             <Route path="/confrontos" element={<Confrontos key="confrontos" />} />
             <Route path="/dicas-da-rodada" element={<DicasDaRodada key="dicas-da-rodada" />} />
+            <Route path="/times" element={<TeamStats key="times" />} />
 
           </Routes>
         </main>

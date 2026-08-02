@@ -1,6 +1,6 @@
 import io
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pandas as pd
@@ -77,7 +77,7 @@ class RedisDataFrameStore:
         ts = metadata.get(f"{table}_updated")
         if ts is None:
             return None
-        return datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+        return datetime.fromisoformat(ts).replace(tzinfo=UTC)
 
     def exists(self, key: str) -> bool:
         return self.redis.exists(self._key(key)) > 0
@@ -138,9 +138,7 @@ class RedisDataFrameStore:
 
     def delete_by_prefix(self, prefix: str) -> int:
         pattern = f"{self.PREFIX}:{prefix}*"
-        keys = []
-        for key in self.redis.scan_iter(match=pattern):
-            keys.append(key)
+        keys = list(self.redis.scan_iter(match=pattern))
         if keys:
             return self.redis.delete(*keys)
         return 0

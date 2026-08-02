@@ -6,7 +6,7 @@ import os
 import re
 import ssl
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html import unescape
 from typing import Any, Literal
 from urllib.error import HTTPError, URLError
@@ -20,13 +20,13 @@ from .atletas_unified import (
     normalize_numeric_columns,
     normalize_string,
 )
-from .enums import Scout
 from .dicas_memory import (
     DicasMemoryError,
     current_season_year,
     get_dicas_memory_store,
     load_memories_for_prediction,
 )
+from .enums import Scout
 from .pontos_cedidos_unified import compute_pontos_cedidos_unified
 from .pontos_conquistados_unified import compute_pontos_conquistados_unified
 from .redis_store import RedisDataFrameStore
@@ -78,7 +78,7 @@ def round_window(rodada: int, span: int) -> tuple[int, int]:
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def report_key(rodada: int, season_year: int | None = None) -> str:
@@ -535,7 +535,9 @@ def _fetch_public_page_text(url: str, timeout: int = 20) -> str:
         with urlopen(request, timeout=timeout, context=context) as response:
             html = response.read().decode("utf-8", "ignore")
 
-    html = re.sub(r"<(script|style).*?</\1>", " ", html, flags=re.S | re.I)
+    html = re.sub(
+        r"<(script|style).*?</\1>", " ", html, flags=re.DOTALL | re.IGNORECASE
+    )
     text = re.sub(r"<[^>]+>", " ", html)
     text = unescape(text)
     return re.sub(r"\s+", " ", text).strip()
@@ -668,6 +670,8 @@ def _report_candidate(item: dict) -> dict:
         "score": item.get("score"),
         "atleta_id": item.get("atleta_id"),
         "apelido": item.get("apelido"),
+        "foto": item.get("foto"),
+        "clube_id": item.get("clube_id"),
         "clube_nome": item.get("clube_nome"),
         "posicao_id": item.get("posicao_id"),
         "posicao": item.get("posicao"),
@@ -678,6 +682,7 @@ def _report_candidate(item: dict) -> dict:
         "teto": item.get("teto"),
         "consistencia_5pts": item.get("consistencia_5pts"),
         "mando": item.get("mando"),
+        "adversario_id": item.get("adversario_id"),
         "media_no_mando": item.get("media_no_mando"),
         "jogos_no_mando": item.get("jogos_no_mando"),
         "adversario_nome": item.get("adversario_nome"),
@@ -860,6 +865,7 @@ def build_position_recommendation_board_from_store(
         "spans": list(spans),
         "windows": raw_by_span,
         "position_picks": position_picks,
+        "candidates": candidates,
         "low_confidence_watch": low_confidence_watch,
         "captain_candidates": captain_candidates,
         "value_candidates": value_candidates,
@@ -970,8 +976,16 @@ def build_matchup_insights_from_store(
     limit: int = 24,
     posicao_id: int | None = None,
     next_matches: list[dict] | None = None,
+    rodada_min_override: int | None = None,
+    rodada_max_override: int | None = None,
 ) -> dict:
     rodada_min, rodada_max = round_window(rodada, span)
+    if rodada_min_override is not None:
+        rodada_min = max(1, int(rodada_min_override))
+    if rodada_max_override is not None:
+        rodada_max = min(max(1, int(rodada_max_override)), rodada - 1)
+    if rodada_min > rodada_max:
+        return {"error": "rodada_min must be less than or equal to rodada_max"}
 
     atletas_df = store.load_dataframe("atletas")
     pontuacoes_df = store.load_dataframe("pontuacoes")
@@ -1194,6 +1208,7 @@ def build_matchup_insights_from_store(
                 "score": round(matchup_score, 2),
                 "atleta_id": atleta_id,
                 "apelido": str(row.get("apelido") or ""),
+                "foto": str(row.get("foto") or ""),
                 "clube_id": clube_id,
                 "clube_nome": _club_name(clubes_cache, clube_id),
                 "posicao_id": position_id,

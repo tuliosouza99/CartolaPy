@@ -35,8 +35,7 @@ class RequestHandler:
             await self.session.close()
 
     async def make_get_request(self, url: str):
-        async with self.rate_limiter:
-            async with self.session.get(url) as response:
-                page_json = await response.json()
+        async with self.rate_limiter, self.session.get(url) as response:
+            page_json = await response.json()
 
         return page_json

@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
+
 from src.dependencies import get_redis_store
 from src.services.enums import Scout
 
@@ -498,8 +499,8 @@ class TestValidation:
 
         def load_json_side_effect(key):
             if key.startswith("partidas:"):
-                return None
-            return None
+                return
+            return
 
         mock_redis_store.load_json = MagicMock(side_effect=load_json_side_effect)
         mock_redis_store.exists = MagicMock(return_value=True)

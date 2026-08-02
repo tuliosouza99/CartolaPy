@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
+
 from src.services.data_loaders.pontuacoes import Pontuacoes
 from src.services.enums import Scout
 

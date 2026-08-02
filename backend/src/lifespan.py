@@ -1,7 +1,7 @@
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import AsyncGenerator
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 
@@ -31,7 +31,7 @@ async def setup_dl(app: FastAPI):
             store.save_json("posicoes", atletas_result.posicoes)
         if atletas_result.status:
             store.save_json("status", atletas_result.status)
-        store.save_last_updated("atletas", datetime.now(timezone.utc))
+        store.save_last_updated("atletas", datetime.now(UTC))
         logger.info("Data saved to Redis cache")
 
         confrontos_df = await app.state.data_loader.confrontos.fill_confrontos(
@@ -45,11 +45,11 @@ async def setup_dl(app: FastAPI):
         )
 
         store.save_dataframe("confrontos", confrontos_df)
-        store.save_last_updated("confrontos", datetime.now(timezone.utc))
+        store.save_last_updated("confrontos", datetime.now(UTC))
         store.save_dataframe("pontuacoes", pontuacoes_df)
-        store.save_last_updated("pontuacoes", datetime.now(timezone.utc))
+        store.save_last_updated("pontuacoes", datetime.now(UTC))
         store.save_dataframe("pontos_cedidos", pontos_cedidos_df)
-        store.save_last_updated("pontos_cedidos", datetime.now(timezone.utc))
+        store.save_last_updated("pontos_cedidos", datetime.now(UTC))
         logger.info("All tables populated in Redis")
     else:
         logger.info("Loaded data from Redis cache")
@@ -62,7 +62,7 @@ async def shutdown_dl(app: FastAPI):
 
 
 @asynccontextmanager
-async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
     broker.state.fastapi_app = app
     await setup_dl(app)
     if not broker.is_worker_process:

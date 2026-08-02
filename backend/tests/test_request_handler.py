@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from src.services.request_handler import RequestHandler
 
 
@@ -69,8 +70,7 @@ class TestRequestHandler:
     async def test_session_is_created_on_init(self, mock_session):
         with patch("aiohttp.ClientSession", return_value=mock_session):
             handler = RequestHandler()
-        mock_session.get  # Just verify session was accessed
-        assert handler.session is not None
+        assert handler.session is mock_session
 
     @pytest.mark.anyio
     async def test_finalizer_is_set_for_cleanup(self, mock_session):

@@ -39,7 +39,7 @@ else:
     redis_url = _get_redis_url()
     broker = RedisStreamBroker(url=redis_url)
 
-from . import tasks  # noqa: E402, F401 - needed for task registration
+from . import tasks  # noqa: F401 - needed for task registration
 
 
 async def startup_handler(state) -> None:

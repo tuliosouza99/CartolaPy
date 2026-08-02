@@ -112,14 +112,16 @@ class TestEndpointsReadFromRedis:
             ]
         )
 
-        with patch("src.api.routes.get_redis_store", return_value=mock_store):
-            with patch("src.api.routes.get_data_loader") as mock_dl:
-                mock_dl.return_value = MagicMock()
-                from src.main import get_app
+        with (
+            patch("src.api.routes.get_redis_store", return_value=mock_store),
+            patch("src.api.routes.get_data_loader") as mock_dl,
+        ):
+            mock_dl.return_value = MagicMock()
+            from src.main import get_app
 
-                app = get_app()
-                client = TestClient(app)
-                response = client.get("/tables/atletas")
+            app = get_app()
+            client = TestClient(app)
+            response = client.get("/tables/atletas")
 
         if response.status_code == 200:
             mock_store.load_dataframe.assert_called_once_with("atletas")
@@ -133,14 +135,16 @@ class TestEndpointsReadFromRedis:
             [{"atleta_id": 89256, "rodada_id": 15, "pontuacao": 8.0}]
         )
 
-        with patch("src.api.routes.get_redis_store", return_value=mock_store):
-            with patch("src.api.routes.get_data_loader") as mock_dl:
-                mock_dl.return_value = MagicMock()
-                from src.main import get_app
+        with (
+            patch("src.api.routes.get_redis_store", return_value=mock_store),
+            patch("src.api.routes.get_data_loader") as mock_dl,
+        ):
+            mock_dl.return_value = MagicMock()
+            from src.main import get_app
 
-                app = get_app()
-                client = TestClient(app)
-                response = client.get("/tables/pontuacoes")
+            app = get_app()
+            client = TestClient(app)
+            response = client.get("/tables/pontuacoes")
 
         if response.status_code == 200:
             mock_store.load_dataframe.assert_called_with("pontuacoes")

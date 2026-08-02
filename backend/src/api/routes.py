@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 import pandas as pd
@@ -12,6 +12,14 @@ from ..services import DataLoader
 from ..services.atletas_unified import compute_atletas_unified
 from ..services.cartola_models import ClubeData, validate_partidas_response
 from ..services.fotmob import FotmobMappingError, FotmobService
+from ..services.fotmob_team_stats import (
+    TABLE_KEY as FOTMOB_TEAM_STATS_TABLE,
+)
+from ..services.fotmob_team_stats import (
+    aggregate_team_stats,
+    sync_fotmob_team_stats,
+)
+from ..services.match_analysis import build_match_analysis
 from ..services.player_view import build_cartola_player_view
 from ..services.pontos_cedidos_unified import compute_pontos_cedidos_unified
 from ..services.pontos_conquistados_unified import compute_pontos_conquistados_unified
@@ -42,6 +50,51 @@ limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 
+@router.get("/team-stats")
+@limiter.limit("100/minute")
+async def get_team_stats(
+    request: Request,
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    rodada_min: int = Query(default=1, ge=1),
+    rodada_max: int | None = Query(default=None, ge=1),
+    is_mandante: Annotated[IsMandante, Query()] = IsMandante.GERAL,
+):
+    """Aggregate persisted match-level Opta team stats for the selected cut."""
+    df = store.load_dataframe(FOTMOB_TEAM_STATS_TABLE)
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        try:
+            await sync_fotmob_team_stats(store, data_loader.request_handler)
+            df = store.load_dataframe(FOTMOB_TEAM_STATS_TABLE)
+        except Exception as exc:
+            logger.exception("Initial FotMob team-stat sync failed")
+            raise HTTPException(
+                status_code=502,
+                detail="Não foi possível sincronizar as estatísticas de times do FotMob",
+            ) from exc
+
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        raise HTTPException(
+            status_code=503, detail="Estatísticas de times ainda indisponíveis"
+        )
+
+    available_max = int(pd.to_numeric(df["round"], errors="coerce").max())
+    selected_max = rodada_max if rodada_max is not None else available_max
+    if rodada_min > selected_max:
+        raise HTTPException(
+            status_code=422,
+            detail="rodada_min must be less than or equal to rodada_max",
+        )
+
+    return aggregate_team_stats(
+        df=df,
+        rodada_min=rodada_min,
+        rodada_max=selected_max,
+        is_mandante=is_mandante.value,
+        updated_at=store.load_last_updated(FOTMOB_TEAM_STATS_TABLE),
+    )
+
+
 @router.get("/tables/atletas", response_model=TableResponse)
 @limiter.limit("100/minute")
 async def get_atletas(
@@ -50,7 +103,7 @@ async def get_atletas(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
-    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    sort_direction: Annotated[SortDirection, Query()] = SortDirection.ASC,
 ):
     df = store.load_dataframe("atletas")
     if df is None:
@@ -85,7 +138,7 @@ async def get_pontuacoes(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
-    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    sort_direction: Annotated[SortDirection, Query()] = SortDirection.ASC,
 ):
     df = store.load_dataframe("pontuacoes")
     if df is None:
@@ -120,7 +173,7 @@ async def get_confrontos(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
-    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    sort_direction: Annotated[SortDirection, Query()] = SortDirection.ASC,
 ):
     df = store.load_dataframe("confrontos")
     if df is None:
@@ -155,7 +208,7 @@ async def get_pontos_cedidos(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
-    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    sort_direction: Annotated[SortDirection, Query()] = SortDirection.ASC,
 ):
     df = store.load_dataframe("pontos_cedidos")
     if df is None:
@@ -257,9 +310,56 @@ async def get_partidas(
 
     partidas = await fetch_partidas_from_cartola(data_loader.request_handler, rodada)
     store.save_json(cache_key, partidas)
-    store.save_last_updated(cache_key, datetime.now(timezone.utc))
+    store.save_last_updated(cache_key, datetime.now(UTC))
 
     return partidas
+
+
+@router.get("/dicas-da-rodada/matches")
+@limiter.limit("100/minute")
+async def get_dicas_match_analysis(
+    request: Request,
+    data_loader: Annotated[DataLoader, Depends(get_data_loader)],
+    store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
+    match_id: int | None = Query(default=None, ge=1),
+    rodada_min: int | None = Query(default=None, ge=1),
+    rodada_max: int | None = Query(default=None, ge=1),
+    contextual_venue: bool = Query(default=True),
+):
+    """Build an explainable, single-match dashboard for the next round."""
+    rodada = (store.load_rodada_id() or 1) + 1
+    latest_completed_round = rodada - 1
+    if rodada_max is not None and rodada_max > latest_completed_round:
+        rodada_max = latest_completed_round
+    if rodada_min is not None and rodada_max is not None and rodada_min > rodada_max:
+        raise HTTPException(
+            status_code=422,
+            detail="rodada_min must be less than or equal to rodada_max",
+        )
+    cache_key = f"partidas:{rodada}"
+    matches = store.load_json(cache_key)
+    if not isinstance(matches, list) or not matches:
+        matches = await fetch_partidas_from_cartola(data_loader.request_handler, rodada)
+        store.save_json(cache_key, matches)
+        store.save_last_updated(cache_key, datetime.now(UTC))
+
+    fotmob_df = store.load_dataframe(FOTMOB_TEAM_STATS_TABLE)
+    if not isinstance(fotmob_df, pd.DataFrame) or fotmob_df.empty:
+        try:
+            await sync_fotmob_team_stats(store, data_loader.request_handler)
+        except Exception:
+            # FotMob enriches the dashboard but must not block Cartola matchup data.
+            logger.exception("Initial FotMob sync failed for match analysis")
+
+    return build_match_analysis(
+        store=store,
+        rodada=rodada,
+        matches=matches,
+        selected_match_id=match_id,
+        rodada_min=rodada_min,
+        rodada_max=rodada_max,
+        contextual_venue=contextual_venue,
+    )
 
 
 @router.get("/confrontos/{rodada}", response_model=ConfrontosResponse)
@@ -276,7 +376,7 @@ async def get_confrontos_detail(
     if not cached:
         cached = await fetch_partidas_from_cartola(data_loader.request_handler, rodada)
         store.save_json(cache_key, cached)
-        store.save_last_updated(cache_key, datetime.now(timezone.utc))
+        store.save_last_updated(cache_key, datetime.now(UTC))
 
     posicoes_cache = store.load_json("posicoes")
     pontuacoes_df = store.load_dataframe("pontuacoes")
@@ -447,7 +547,7 @@ async def update_atletas(
         return UpdateResponse(
             success=True,
             message="Atletas updated successfully",
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
     except Exception:
         logger.exception("Failed to update atletas")
@@ -466,10 +566,10 @@ async def get_atletas_unified(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
-    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    sort_direction: Annotated[SortDirection, Query()] = SortDirection.ASC,
     rodada_min: int = Query(default=1, ge=1),
     rodada_max: int | None = None,
-    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+    is_mandante: Annotated[IsMandante, Query()] = IsMandante.GERAL,
     search: str | None = Query(default=None),
     clube_ids: str | None = Query(default=None),
     posicao_ids: str | None = Query(default=None),
@@ -508,7 +608,7 @@ async def get_atletas_unified(
             data_loader.request_handler, next_rodada
         )
         store.save_json(f"partidas:{next_rodada}", proximo_jogo_cache)
-        store.save_last_updated(f"partidas:{next_rodada}", datetime.now(timezone.utc))
+        store.save_last_updated(f"partidas:{next_rodada}", datetime.now(UTC))
 
     atletas_df = store.load_dataframe("atletas")
     if atletas_df is None:
@@ -604,7 +704,7 @@ async def get_atleta_historico(
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     rodada_min: int = Query(default=1, ge=1),
     rodada_max: int | None = None,
-    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+    is_mandante: Annotated[IsMandante, Query()] = IsMandante.GERAL,
 ):
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
@@ -724,7 +824,7 @@ async def get_player_view(
     store: Annotated[RedisDataFrameStore, Depends(get_redis_store)],
     rodada_min: int = Query(default=1, ge=1),
     rodada_max: int | None = None,
-    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+    is_mandante: Annotated[IsMandante, Query()] = IsMandante.GERAL,
 ):
     rodada_atual = store.load_rodada_id() or 1
     if rodada_max is None:
@@ -805,10 +905,10 @@ async def get_pontos_cedidos_unified(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
-    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    sort_direction: Annotated[SortDirection, Query()] = SortDirection.ASC,
     rodada_min: int = Query(default=1, ge=1),
     rodada_max: int | None = None,
-    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+    is_mandante: Annotated[IsMandante, Query()] = IsMandante.GERAL,
     posicao_id: int = Query(default=1, ge=1),
     scout: str | None = Query(default=None),
 ):
@@ -965,10 +1065,10 @@ async def get_pontos_conquistados_unified(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1),
     sort_by: str | None = None,
-    sort_direction: SortDirection = Query(default=SortDirection.ASC),
+    sort_direction: Annotated[SortDirection, Query()] = SortDirection.ASC,
     rodada_min: int = Query(default=1, ge=1),
     rodada_max: int | None = None,
-    is_mandante: IsMandante = Query(default=IsMandante.GERAL),
+    is_mandante: Annotated[IsMandante, Query()] = IsMandante.GERAL,
     posicao_id: int = Query(default=1, ge=1),
     status_ids: str | None = Query(default=None),
     scout: str | None = Query(default=None),
@@ -1231,7 +1331,7 @@ async def get_proximo_jogo(
             data_loader.request_handler, next_rodada
         )
         store.save_json(cache_key, cached)
-        store.save_last_updated(cache_key, datetime.now(timezone.utc))
+        store.save_last_updated(cache_key, datetime.now(UTC))
 
     for match in cached:
         if str(match["mandante_id"]) == str(clube_id) or str(

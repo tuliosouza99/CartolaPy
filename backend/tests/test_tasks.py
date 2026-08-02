@@ -1,6 +1,7 @@
 import pytest
-from src.tkq import broker
 from taskiq import InMemoryBroker
+
+from src.tkq import broker
 
 
 class TestUpdateDataScheduledTask:
@@ -92,3 +93,17 @@ class TestDicasMemoryScheduledTask:
         from src.tasks import refresh_dicas_round_memories_task
 
         assert refresh_dicas_round_memories_task.task_name in broker.get_all_tasks()
+
+
+class TestFotmobTeamStatsScheduledTask:
+    def test_task_is_scheduled_every_30_minutes(self):
+        from src.tasks import update_fotmob_team_stats_task
+
+        assert update_fotmob_team_stats_task.labels.get("schedule") == [
+            {"cron": "*/30 * * * *"}
+        ]
+
+    def test_task_is_registered_in_broker(self):
+        from src.tasks import update_fotmob_team_stats_task
+
+        assert update_fotmob_team_stats_task.task_name in broker.get_all_tasks()

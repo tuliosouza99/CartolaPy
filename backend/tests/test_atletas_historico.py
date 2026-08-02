@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
+
 from src.dependencies import get_redis_store
 from src.services.enums import Scout
 

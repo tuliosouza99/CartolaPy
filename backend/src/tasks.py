@@ -1,6 +1,7 @@
 from __future__ import annotations
+
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from taskiq import TaskiqDepends
@@ -9,6 +10,7 @@ from .dependencies import get_data_loader, get_rodada_id_state
 from .services import DataLoader
 from .services.dicas_da_rodada import run_dicas_report_generation
 from .services.dicas_memory import refresh_round_memories
+from .services.fotmob_team_stats import sync_fotmob_team_stats
 from .tkq import broker
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,7 @@ async def update_data_task(
         store.save_json("posicoes", atletas_result.posicoes)
     if atletas_result.status:
         store.save_json("status", atletas_result.status)
-    store.save_last_updated("atletas", datetime.now(timezone.utc))
+    store.save_last_updated("atletas", datetime.now(UTC))
     logger.info(f"New rodada_id: {atletas_result.rodada_id}, atletas saved to Redis")
 
     new_rodada_id = atletas_result.rodada_id
@@ -50,11 +52,11 @@ async def update_data_task(
         )
 
         store.save_dataframe("confrontos", confrontos_df)
-        store.save_last_updated("confrontos", datetime.now(timezone.utc))
+        store.save_last_updated("confrontos", datetime.now(UTC))
         store.save_dataframe("pontuacoes", pontuacoes_df)
-        store.save_last_updated("pontuacoes", datetime.now(timezone.utc))
+        store.save_last_updated("pontuacoes", datetime.now(UTC))
         store.save_dataframe("pontos_cedidos", pontos_cedidos_df)
-        store.save_last_updated("pontos_cedidos", datetime.now(timezone.utc))
+        store.save_last_updated("pontos_cedidos", datetime.now(UTC))
         deleted = store.delete_by_prefix("partidas:")
         logger.info(
             f"All tables saved to Redis after rodada change, invalidated {deleted} partidas cache keys"
@@ -105,5 +107,24 @@ async def refresh_dicas_round_memories_task() -> dict:
         "refresh_dicas_round_memories_task completed created=%s skipped=%s",
         result.get("created", []),
         result.get("skipped", []),
+    )
+    return result
+
+
+@broker.task(schedule=[{"cron": "*/30 * * * *"}])
+async def update_fotmob_team_stats_task(
+    data_loader: Annotated[DataLoader, TaskiqDepends(get_data_loader)],
+) -> dict:
+    """Incrementally persist completed Brasileirão team-match Opta statistics."""
+    logger.info("update_fotmob_team_stats_task started")
+    result = await sync_fotmob_team_stats(
+        store=broker.state.redis_store,
+        request_handler=data_loader.request_handler,
+    )
+    logger.info(
+        "update_fotmob_team_stats_task completed fetched=%s stored=%s failed=%s",
+        result["fetched_matches"],
+        result["stored_matches"],
+        len(result["failed_match_ids"]),
     )
     return result

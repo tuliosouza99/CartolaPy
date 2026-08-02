@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from src.services.data_loaders.pontos_cedidos import PontosCedidos
 from src.services.enums import Scout
 

@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from src.services.enums import Scout
 from src.services.pontos_conquistados_unified import compute_pontos_conquistados_unified
 

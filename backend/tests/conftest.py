@@ -3,8 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 import taskiq_fastapi
-from src.tkq import broker
 from taskiq import InMemoryBroker
+
+from src.tkq import broker
 
 
 @pytest.fixture

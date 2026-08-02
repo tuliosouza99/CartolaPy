@@ -1,10 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from typing import Generic, Literal, TypeVar
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
-
-T = TypeVar("T")
 
 
 class SortDirection(str, Enum):
@@ -28,7 +26,7 @@ class SortParams(BaseModel):
     sort_direction: SortDirection = SortDirection.ASC
 
 
-class TableResponse(BaseModel, Generic[T]):
+class TableResponse[T](BaseModel):
     total: int
     page: int
     page_size: int
